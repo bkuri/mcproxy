@@ -2,10 +2,11 @@
 
 A lightweight, configuration-driven MCP (Model Context Protocol) gateway that aggregates multiple stdio MCP servers through a single SSE endpoint.
 
-**Status**: Production Ready ✅  
+**Status**: Beta - Internal Use  
 **Python Version**: 3.11+  
 **Memory**: <512MB  
-**Port**: 12010 (default)
+**Port**: 12010 (default)  
+**Security**: Internal network only (no authentication yet)
 
 ---
 
@@ -371,8 +372,19 @@ MIT License
 
 ---
 
+## Roadmap
+
+Future enhancements (not yet implemented):
+- [ ] Authentication & authorization
+- [ ] TLS/SSL support
+- [ ] Metrics & monitoring dashboard
+- [ ] Request rate limiting
+- [ ] Load balancing for multiple gateways
+- [ ] Tool-level access control
+
 ## Support
 
-- **Issues**: https://github.com/mcproxy/mcproxy/issues
-- **Documentation**: See `AGENTS.md` for detailed implementation guide
-- **Specification**: See `mcproxy_spec.md` for technical details
+For issues, questions, or contributions:
+- **GitHub**: https://github.com/bkuri/mcproxy
+- **Issues & Bugs**: https://github.com/bkuri/mcproxy/issues
+- **Discussions**: https://github.com/bkuri/mcproxy/discussions
