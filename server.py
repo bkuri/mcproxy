@@ -21,6 +21,29 @@ server_manager: Optional[Any] = None
 app = FastAPI(title="MCProxy", version="1.0.0")
 
 
+@app.get("/tools")
+async def list_tools() -> Dict[str, Any]:
+    """GET endpoint to list all available tools as JSON.
+
+    Returns a JSON object with aggregated tools from all servers.
+    Useful for quick lookup without MCP protocol overhead.
+    """
+    if server_manager is None:
+        return {"error": "Server manager not initialized", "tools": []}
+
+    try:
+        servers_tools = server_manager.get_all_tools()
+        tools = aggregate_tools(servers_tools)
+        return {
+            "status": "success",
+            "total_tools": len(tools),
+            "tools": tools,
+        }
+    except Exception as e:
+        logger.error(f"Error listing tools: {e}")
+        return {"error": str(e), "tools": []}
+
+
 @app.get("/sse")
 async def sse_endpoint(request: Request) -> StreamingResponse:
     """SSE endpoint for MCP protocol.
