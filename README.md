@@ -16,9 +16,10 @@ A lightweight, configuration-driven MCP (Model Context Protocol) gateway that ag
 - ✅ **Auto-Restart**: Crashed servers auto-recover (max 3 attempts)
 - ✅ **Zero-Config Tool Prefixing**: Automatic namespace resolution
 - ✅ **Environment Variable Interpolation**: `${VAR_NAME}` in JSON configs
-- ✅ **Low Memory Footprint**: <512MB with 10+ servers
+- ✅ **Low Memory Footprint**: <1GB with 60+ tools across 13 servers
 - ✅ **Syslog + Stdout Logging**: Comprehensive observability
 - ✅ **Docker/Podman Ready**: Containerized deployment
+- ✅ **Advanced Reasoning Tools**: Think Tool, Sequential Thinking, Atom of Thoughts
 
 ---
 
@@ -184,6 +185,26 @@ curl -X POST http://localhost:12010/sse \
     }
   }'
 ```
+
+### Test Thinking Tools
+
+MCProxy includes powerful reasoning tools for complex problem-solving:
+
+```bash
+# Quick test all 4 thinking tools
+bash tests/test_thinking_tools_comparison.sh
+
+# Run against custom server
+bash tests/test_thinking_tools_comparison.sh http://your-server:12010
+```
+
+**Available thinking tools:**
+- **think_tool** - Simple single-thought reasoning (~1s)
+- **sequential_thinking** - Multi-step structured reasoning with branching (~2s/step)
+- **atom_of_thoughts** - Complex atomic reasoning with verification (~3s)
+- **atom_of_thoughts_light** - Fast atomic analysis (~1.5s)
+
+See [THINKING_TOOLS_QUICK_REFERENCE.md](./THINKING_TOOLS_QUICK_REFERENCE.md) for API reference and [TESTING_THINKING_TOOLS.md](./TESTING_THINKING_TOOLS.md) for comprehensive testing guide.
 
 ---
 
