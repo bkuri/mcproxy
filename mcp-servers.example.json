@@ -1,0 +1,127 @@
+{
+  "servers": [
+    {
+      "name": "fear_greed_index",
+      "command": "/usr/bin/npx",
+      "args": ["-y", "mcp-server-fear-greed"],
+      "env": {
+        "PATH": "/usr/bin:/usr/local/bin:/bin"
+      },
+      "timeout": 60,
+      "enabled": true
+    },
+    {
+      "name": "sequential_thinking",
+      "command": "/usr/bin/npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+      "env": {
+        "PATH": "/usr/bin:/usr/local/bin:/bin"
+      },
+      "timeout": 60,
+      "enabled": true
+    },
+    {
+      "name": "coincap",
+      "command": "/usr/bin/npx",
+      "args": ["-y", "coincap-mcp"],
+      "env": {
+        "PATH": "/usr/bin:/usr/local/bin:/bin"
+      },
+      "timeout": 60,
+      "enabled": true
+    },
+    {
+      "name": "llms_txt",
+      "command": "/usr/bin/uvx",
+      "args": ["mcpdoc", "--urls", "LangGraph:https://langchain-ai.github.io/langgraph/llms.txt", "--transport", "stdio"],
+      "env": {
+        "PATH": "/usr/bin:/usr/local/bin:/bin"
+      },
+      "timeout": 60,
+      "enabled": true
+    },
+    {
+      "name": "youtube",
+      "command": "/usr/bin/npx",
+      "args": ["-y", "@anaisbetts/mcp-youtube"],
+      "env": {
+        "PATH": "/usr/bin:/usr/local/bin:/bin"
+      },
+      "timeout": 60,
+      "enabled": true
+    },
+    {
+      "name": "wikipedia",
+      "command": "/usr/bin/npx",
+      "args": ["-y", "wikipedia-mcp"],
+      "env": {
+        "PATH": "/usr/bin:/usr/local/bin:/bin"
+      },
+      "timeout": 60,
+      "enabled": true
+    },
+    {
+      "name": "tmux",
+      "command": "/usr/bin/npx",
+      "args": ["-y", "@executeautomation/tmux-mcp-server"],
+      "env": {
+        "PATH": "/usr/bin:/usr/local/bin:/bin"
+      },
+      "timeout": 60,
+      "enabled": true
+    },
+    {
+      "name": "asset_price",
+      "command": "/usr/bin/npx",
+      "args": ["-y", "asset-price-mcp"],
+      "env": {
+        "PATH": "/usr/bin:/usr/local/bin:/bin"
+      },
+      "timeout": 60,
+      "enabled": true
+    },
+    {
+      "name": "pure_md",
+      "command": "/usr/bin/npx",
+      "args": ["-y", "puremd-mcp"],
+      "env": {
+        "PATH": "/usr/bin:/usr/local/bin:/bin",
+        "PUREMD_API_KEY": "${PUREMD_API_KEY}"
+      },
+      "timeout": 60,
+      "enabled": true
+    },
+    {
+      "name": "playwright",
+      "command": "/usr/bin/npx",
+      "args": ["-y", "@executeautomation/playwright-mcp-server"],
+      "env": {
+        "PATH": "/usr/bin:/usr/local/bin:/bin"
+      },
+      "timeout": 60,
+      "enabled": true
+    },
+    {
+      "name": "perplexity_sonar",
+      "command": "/usr/bin/uvx",
+      "args": ["perplexity-mcp"],
+      "env": {
+        "PATH": "/usr/bin:/usr/local/bin:/bin",
+        "PERPLEXITY_MODEL": "sonar",
+        "PERPLEXITY_API_KEY": "${PERPLEXITY_API_KEY}"
+      },
+      "timeout": 60,
+      "enabled": true
+    },
+    {
+      "name": "ollama",
+      "command": "/usr/bin/npx",
+      "args": ["-y", "@executeautomation/ollama-mcp-server"],
+      "env": {
+        "PATH": "/usr/bin:/usr/local/bin:/bin"
+      },
+      "timeout": 60,
+      "enabled": false
+    }
+  ]
+}

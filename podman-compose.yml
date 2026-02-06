@@ -1,0 +1,25 @@
+version: "3.8"
+
+services:
+  mcproxy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: localhost/mcproxy:latest
+    container_name: mcproxy
+    network_mode: host
+    volumes:
+      - ./config:/app/config:Z
+      - ./.env:/app/.env:ro
+    environment_file:
+      - .env
+    working_dir: /app
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:12010/sse', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    mem_limit: 512m
+    read_only: false

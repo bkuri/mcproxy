@@ -1,0 +1,43 @@
+[Unit]
+Description=MCProxy - MCP Gateway Aggregator
+Documentation=https://github.com/mcproxy/mcproxy
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=localhost/mcproxy:latest
+ContainerName=mcproxy
+Network=host
+
+# Mount configuration directory
+Volume=/srv/containers/mc-gateway/config:/app/config:Z
+
+# Environment variables (loaded from .env file)
+EnvironmentFile=/srv/containers/mc-gateway/.env
+
+# Working directory
+WorkingDirectory=/app
+
+# Run with logging to stdout
+Exec=python main.py --log --config /app/config/mcp-servers.json
+
+# Container labels
+Label=app=mcproxy
+Label=service=gateway
+
+# Security settings
+NoNewPrivileges=true
+SecurityLabelDisable=false
+
+# Resource limits (MCProxy is lightweight)
+Memory=512M
+MemorySwap=512M
+
+[Service]
+Restart=always
+RestartSec=10
+TimeoutStartSec=120
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target
