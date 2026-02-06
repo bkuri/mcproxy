@@ -6,6 +6,7 @@ and runs the FastAPI application with hot-reload support.
 
 import argparse
 import asyncio
+import os
 import signal
 import sys
 from pathlib import Path
@@ -28,6 +29,17 @@ hot_reload_manager: Optional[HotReloadServerManager] = None
 async def main() -> None:
     """Main application entry point."""
     global config_reloader, hot_reload_manager
+
+    # Load environment variables from .env file
+    env_file = Path(".env")
+    if env_file.exists():
+        with open(env_file) as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    key, _, value = line.partition("=")
+                    if key and not os.environ.get(key):
+                        os.environ[key] = value
 
     parser = argparse.ArgumentParser(
         description="MCProxy - MCP Gateway Aggregator",
