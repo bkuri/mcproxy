@@ -21,6 +21,26 @@
       "enabled": true
     },
     {
+      "name": "atom_of_thoughts",
+      "command": "/usr/bin/node",
+      "args": ["/tmp/MCP_Atom_of_Thoughts/build/index.js"],
+      "env": {
+        "PATH": "/usr/bin:/usr/local/bin:/bin"
+      },
+      "timeout": 60,
+      "enabled": true
+    },
+    {
+      "name": "think_tool",
+      "command": "/usr/bin/npx",
+      "args": ["-y", "think-tool-mcp"],
+      "env": {
+        "PATH": "/usr/bin:/usr/local/bin:/bin"
+      },
+      "timeout": 60,
+      "enabled": true
+    },
+    {
       "name": "coincap",
       "command": "/usr/bin/npx",
       "args": ["-y", "coincap-mcp"],
