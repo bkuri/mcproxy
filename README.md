@@ -13,7 +13,6 @@ A lightweight, configuration-driven MCP (Model Context Protocol) gateway that ag
 ## Features
 
 - ✅ **Dual Mode**: HTTP/SSE endpoint OR native MCP server over stdio
-- ✅ **Hot-Reload**: Edit config without restarting connections
 - ✅ **Auto-Restart**: Crashed servers auto-recover (max 3 attempts)
 - ✅ **Zero-Config Tool Prefixing**: Automatic namespace resolution
 - ✅ **Environment Variable Interpolation**: `${VAR_NAME}` in JSON configs
@@ -21,6 +20,7 @@ A lightweight, configuration-driven MCP (Model Context Protocol) gateway that ag
 - ✅ **Syslog + Stdout Logging**: Comprehensive observability
 - ✅ **Docker/Podman Ready**: Containerized deployment
 - ✅ **Advanced Reasoning Tools**: Think Tool, Sequential Thinking, Atom of Thoughts
+- ✅ **52+ Aggregated Tools**: Seamless integration of multiple MCP servers
 
 ---
 
@@ -229,6 +229,41 @@ When running in stdio mode:
 5. **Tool results** are formatted and returned via MCP protocol
 
 This avoids event loop conflicts by keeping everything in a single asyncio event loop.
+
+---
+
+## Updating Server Configuration
+
+### Adding/Removing MCP Servers
+
+When you need to add, remove, or modify MCP servers:
+
+1. **Edit the configuration**:
+   ```bash
+   # On server2
+   nano /srv/containers/mcproxy/config/mcp-servers.json
+   ```
+
+2. **Restart MCProxy**:
+   ```bash
+   sudo systemctl restart mcproxy
+   ```
+
+3. **Restart your MCP client** (e.g., OpenCode):
+   - OpenCode and other HTTP MCP clients cache the tool list at connection time
+   - Restarting the client forces it to request the updated tool list
+
+### Why Configuration Changes Require Client Restart
+
+MCProxy's configuration changes take effect immediately on the server side, but:
+- HTTP/SSE MCP clients (including OpenCode) cache the tool list for performance
+- The MCP protocol itself doesn't provide a push mechanism for tool list updates
+- This is standard behavior across all HTTP-based MCP implementations
+
+You can verify new tools are available without restarting your client:
+```bash
+curl http://192.168.50.71:12010/tools | grep "your-new-tool"
+```
 
 ---
 

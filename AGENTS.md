@@ -18,11 +18,8 @@ python main.py --log
 # Run with custom config
 python main.py --config mcp-servers.json --port 12009
 
-# Run without hot-reload (for debugging)
-python main.py --log --no-reload
-
-# Run with custom reload interval
-python main.py --log --reload-interval 2.0
+# Run as native MCP server (stdio mode)
+python main.py --stdio --config mcp-servers.json
 
 # Test SSE endpoint
 curl -N http://localhost:12009/sse
