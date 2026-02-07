@@ -39,13 +39,20 @@ def create_mcp_server(server_manager: Any) -> fastmcp.FastMCP:
             arguments = {}
 
         try:
+            logger.info(f"[MCP] call_tool invoked with name='{name}'")
+
             # Parse prefixed name to get server and tool
             server_name, tool_name = parse_prefixed_tool_name(name)
 
-            logger.info(f"Calling tool '{name}' on server '{server_name}'")
+            logger.info(
+                f"[MCP] Parsed tool: server='{server_name}', tool='{tool_name}'"
+            )
+            logger.info(f"[MCP] Calling tool '{name}' with arguments: {arguments}")
 
             # Route to server
+            logger.info(f"[MCP] About to call server_manager.call_tool()")
             result = await server_manager.call_tool(server_name, tool_name, arguments)
+            logger.info(f"[MCP] Got result from server: {type(result)}")
 
             # Format result
             if isinstance(result, dict) and "content" in result:
@@ -56,14 +63,19 @@ def create_mcp_server(server_manager: Any) -> fastmcp.FastMCP:
                         texts.append(c.get("text", ""))
                     else:
                         texts.append(str(c))
+                logger.info(
+                    f"[MCP] Returning formatted result: {len(texts)} text blocks"
+                )
                 return "\n".join(texts)
             else:
+                logger.info(f"[MCP] Returning raw result")
                 return str(result)
 
         except ValueError as e:
+            logger.error(f"[MCP] ValueError calling tool '{name}': {e}")
             raise ValueError(f"Invalid tool name '{name}': {e}")
         except Exception as e:
-            logger.error(f"Error calling tool '{name}': {e}")
+            logger.error(f"[MCP] Exception calling tool '{name}': {e}", exc_info=True)
             raise
 
     @mcp.resource("tools://list")
