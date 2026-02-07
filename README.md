@@ -12,6 +12,7 @@ A lightweight, configuration-driven MCP (Model Context Protocol) gateway that ag
 
 ## Features
 
+- ✅ **Dual Mode**: HTTP/SSE endpoint OR native MCP server over stdio
 - ✅ **Hot-Reload**: Edit config without restarting connections
 - ✅ **Auto-Restart**: Crashed servers auto-recover (max 3 attempts)
 - ✅ **Zero-Config Tool Prefixing**: Automatic namespace resolution
@@ -138,18 +139,122 @@ Reference in config using `${VAR_NAME}`:
 
 ---
 
+## Native MCP Server Mode (Stdio)
+
+MCProxy can run as a native MCP server over stdio, making it a standard MCP server that works with any MCP client (like Claude Desktop, other AI assistants, etc.).
+
+### Why Use Native MCP Server Mode?
+
+- **No HTTP overhead**: Direct stdio communication
+- **Standard MCP protocol**: Works with any MCP-compatible client
+- **Same event loop**: No async/threading complications
+- **Easy integration**: Single executable that handles all MCP servers
+
+### Running MCProxy as MCP Server
+
+```bash
+# Start MCProxy in stdio mode
+python main.py --stdio --config mcp-servers.json
+
+# MCProxy will:
+# 1. Load all configured MCP servers
+# 2. Expose them through a single 'call_tool' MCP method
+# 3. Accept MCP protocol messages over stdin/stdout
+```
+
+### Using in Claude Desktop
+
+Add to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcServers": {
+    "mcproxy": {
+      "command": "python",
+      "args": ["/path/to/mcproxy/main.py", "--stdio", "--config", "/path/to/mcp-servers.json"],
+      "env": {
+        "PERPLEXITY_API_KEY": "your-key-here",
+        "PUREMD_API_KEY": "your-key-here"
+      }
+    }
+  }
+}
+```
+
+Then in Claude, you can call any tool via the `call_tool` method:
+
+```
+Call the fear_greed_index tool:
+  Tool: call_tool
+  Arguments: {
+    "name": "fear_greed_index__get_fear_greed_index",
+    "arguments": {}
+  }
+```
+
+### Testing MCP Server Mode
+
+Run the automated test:
+
+```bash
+# Requires bash and python
+bash tests/test_mcp_stdio_mode.sh
+```
+
+Expected output:
+```
+[TEST 1] Initialize MCP server
+✓ PASS: Initialize successful
+
+[TEST 2] List available tools
+✓ PASS: Found 1 tool(s)
+
+[TEST 3] Call fear_greed_index__get_fear_greed_index
+✓ PASS: Tool call successful
+
+...
+============================================================
+Test Results: 5 passed, 0 failed
+============================================================
+```
+
+### Architecture
+
+When running in stdio mode:
+
+1. **MCProxy main process** starts in async/await event loop
+2. **FastMCP server** runs async too (using `run_async()`)
+3. **Server manager** spawns all configured MCP servers
+4. **Incoming MCP requests** are routed through `call_tool` method
+5. **Tool results** are formatted and returned via MCP protocol
+
+This avoids event loop conflicts by keeping everything in a single asyncio event loop.
+
+---
+
 ## Command-Line Options
 
 ```bash
 python main.py [OPTIONS]
 
 Options:
+  --stdio            Run as native MCP server over stdio (for direct MCP client integration)
   --log              Log to stdout instead of syslog (useful for debugging)
-  --port PORT         Port to listen on (default: 12010)
+  --port PORT         Port to listen on (default: 12010, HTTP mode only)
   --config PATH       Path to mcp-servers.json (default: config/mcp-servers.json)
-  --host HOST         Host to bind to (default: 0.0.0.0)
+  --host HOST         Host to bind to (default: 0.0.0.0, HTTP mode only)
   --no-reload        Disable hot-reload configuration watcher
   --reload-interval SECONDS  Config check interval (default: 1.0)
+
+Examples:
+  # HTTP/SSE mode (default)
+  python main.py --log --port 12010
+  
+  # Native MCP server mode
+  python main.py --stdio --config mcp-servers.json
+  
+  # Disable hot-reload
+  python main.py --stdio --no-reload
 ```
 
 ---
