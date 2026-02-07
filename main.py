@@ -9,7 +9,6 @@ import asyncio
 import os
 import signal
 import sys
-import threading
 from pathlib import Path
 from typing import Optional
 
@@ -149,27 +148,12 @@ Examples:
     if args.stdio:
         logger.info("Starting MCProxy as MCP server over stdio")
         mcp_server = create_mcp_server(hot_reload_manager)
-
-        def run_mcp_server():
-            """Run FastMCP server in a separate thread."""
-            try:
-                logger.info("MCProxy MCP server running on stdio")
-                # Run the FastMCP server synchronously (blocking call)
-                # FastMCP.run() internally uses anyio.run() and will manage its own event loop
-                mcp_server.run(transport="stdio", show_banner=False)
-            except Exception as e:
-                logger.error(f"MCP server error: {e}")
-
-        # Start MCP server in a thread so it doesn't block the async event loop
-        mcp_thread = threading.Thread(target=run_mcp_server, daemon=False)
-        mcp_thread.start()
-
         try:
-            # Keep the main event loop alive while MCP server runs
-            while mcp_thread.is_alive():
-                await asyncio.sleep(1)
-        except KeyboardInterrupt:
-            logger.info("Interrupted")
+            logger.info("MCProxy MCP server running on stdio")
+            # Use run_async to keep the same event loop and avoid thread/loop conflicts
+            await mcp_server.run_async(transport="stdio", show_banner=False)
+        except Exception as e:
+            logger.error(f"MCP server error: {e}")
         finally:
             await shutdown()
     else:
