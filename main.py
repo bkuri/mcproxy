@@ -17,6 +17,7 @@ import uvicorn
 from config_reloader import ConfigReloader, HotReloadServerManager
 from config_watcher import ConfigError, load_config
 from logging_config import get_logger, setup_logging
+from mcp_server import MCProxyMCPServer
 from server import app, set_server_manager
 
 logger = get_logger(__name__)
@@ -46,7 +47,8 @@ async def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python main.py --log                    # Run with stdout logging
+  python main.py --log                    # Run with stdout logging (HTTP mode)
+  python main.py --stdio                  # Run as MCP server over stdio
   python main.py --port 8080              # Run on custom port
   python main.py --config servers.json    # Use custom config file
   python main.py --no-reload              # Disable hot-reload
@@ -80,6 +82,12 @@ Examples:
         type=float,
         default=1.0,
         help="Config file check interval in seconds (default: 1.0)",
+    )
+
+    parser.add_argument(
+        "--stdio",
+        action="store_true",
+        help="Run as MCP server over stdio instead of HTTP (for direct MCP client integration)",
     )
 
     args = parser.parse_args()
@@ -116,8 +124,8 @@ Examples:
     total_tools = sum(len(t) for t in tools.values())
     logger.info(f"Servers ready: {len(tools)} running with {total_tools} tools")
 
-    # Setup config reloader (hot-reload)
-    if not args.no_reload:
+    # Setup config reloader (hot-reload) - skip in stdio mode
+    if not args.no_reload and not args.stdio:
         config_reloader = ConfigReloader(
             config_path=args.config,
             reload_callback=hot_reload_manager.reload_config,
@@ -125,7 +133,8 @@ Examples:
         )
         await config_reloader.start()
     else:
-        logger.info("Hot-reload disabled")
+        if args.no_reload:
+            logger.info("Hot-reload disabled")
 
     # Setup signal handlers for graceful shutdown
     def signal_handler(sig: int, frame) -> None:
@@ -135,23 +144,34 @@ Examples:
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
 
-    # Run uvicorn
-    uvicorn_config = uvicorn.Config(
-        app, host=args.host, port=args.port, log_level="warning"
-    )
-    server = uvicorn.Server(uvicorn_config)
+    # Run in stdio mode or HTTP mode
+    if args.stdio:
+        logger.info("Starting MCProxy as MCP server over stdio")
+        mcp_server = MCProxyMCPServer(hot_reload_manager)
+        try:
+            await mcp_server.run()
+        except Exception as e:
+            logger.error(f"MCP server error: {e}")
+        finally:
+            await shutdown()
+    else:
+        # Run uvicorn (HTTP/SSE mode)
+        uvicorn_config = uvicorn.Config(
+            app, host=args.host, port=args.port, log_level="warning"
+        )
+        server = uvicorn.Server(uvicorn_config)
 
-    logger.info(f"Starting HTTP server on {args.host}:{args.port}")
-    logger.info(f"SSE endpoint: http://{args.host}:{args.port}/sse")
-    if not args.no_reload:
-        logger.info(f"Hot-reload enabled (checking every {args.reload_interval}s)")
+        logger.info(f"Starting HTTP server on {args.host}:{args.port}")
+        logger.info(f"SSE endpoint: http://{args.host}:{args.port}/sse")
+        if not args.no_reload:
+            logger.info(f"Hot-reload enabled (checking every {args.reload_interval}s)")
 
-    try:
-        await server.serve()
-    except Exception as e:
-        logger.error(f"Server error: {e}")
-    finally:
-        await shutdown()
+        try:
+            await server.serve()
+        except Exception as e:
+            logger.error(f"Server error: {e}")
+        finally:
+            await shutdown()
 
 
 async def shutdown() -> None:
