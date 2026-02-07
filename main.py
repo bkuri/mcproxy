@@ -9,6 +9,7 @@ import asyncio
 import os
 import signal
 import sys
+import threading
 from pathlib import Path
 from typing import Optional
 
@@ -92,8 +93,8 @@ Examples:
 
     args = parser.parse_args()
 
-    # Setup logging
-    setup_logging(use_stdout=args.log)
+    # Setup logging - use stderr in stdio mode to avoid conflicts with JSON output on stdout
+    setup_logging(use_stdout=args.log and not args.stdio, use_stderr=args.stdio)
 
     logger.info("=" * 50)
     logger.info("MCProxy Starting")
@@ -148,14 +149,27 @@ Examples:
     if args.stdio:
         logger.info("Starting MCProxy as MCP server over stdio")
         mcp_server = create_mcp_server(hot_reload_manager)
+
+        def run_mcp_server():
+            """Run FastMCP server in a separate thread."""
+            try:
+                logger.info("MCProxy MCP server running on stdio")
+                # Run the FastMCP server synchronously (blocking call)
+                # FastMCP.run() internally uses anyio.run() and will manage its own event loop
+                mcp_server.run(transport="stdio", show_banner=False)
+            except Exception as e:
+                logger.error(f"MCP server error: {e}")
+
+        # Start MCP server in a thread so it doesn't block the async event loop
+        mcp_thread = threading.Thread(target=run_mcp_server, daemon=False)
+        mcp_thread.start()
+
         try:
-            async with mcp_server:
-                logger.info("MCProxy MCP server running")
-                # Keep server alive
-                while True:
-                    await asyncio.sleep(1)
-        except Exception as e:
-            logger.error(f"MCP server error: {e}")
+            # Keep the main event loop alive while MCP server runs
+            while mcp_thread.is_alive():
+                await asyncio.sleep(1)
+        except KeyboardInterrupt:
+            logger.info("Interrupted")
         finally:
             await shutdown()
     else:
