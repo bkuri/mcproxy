@@ -17,7 +17,7 @@ import uvicorn
 from config_reloader import ConfigReloader, HotReloadServerManager
 from config_watcher import ConfigError, load_config
 from logging_config import get_logger, setup_logging
-from mcp_server import MCProxyMCPServer
+from mcp_server import create_mcp_server
 from server import app, set_server_manager
 
 logger = get_logger(__name__)
@@ -147,9 +147,13 @@ Examples:
     # Run in stdio mode or HTTP mode
     if args.stdio:
         logger.info("Starting MCProxy as MCP server over stdio")
-        mcp_server = MCProxyMCPServer(hot_reload_manager)
+        mcp_server = create_mcp_server(hot_reload_manager)
         try:
-            await mcp_server.run()
+            async with mcp_server:
+                logger.info("MCProxy MCP server running")
+                # Keep server alive
+                while True:
+                    await asyncio.sleep(1)
         except Exception as e:
             logger.error(f"MCP server error: {e}")
         finally:
