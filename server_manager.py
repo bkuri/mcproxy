@@ -212,16 +212,23 @@ class ServerProcess:
             logger.debug(f"[CALL_TOOL_SEND] Sending request to {self.name}")
             await self._send_message(request)
 
+            # Use longer timeout for long-running tools like backtest (300s)
+            # Standard tools complete in <5s, backtests can take 2-5 minutes
+            timeout_seconds = 350  # 5+ minutes to allow full async polling
             logger.debug(
-                f"[CALL_TOOL_WAIT] Waiting for response from {self.name} (timeout=60s)"
+                f"[CALL_TOOL_WAIT] Waiting for response from {self.name} (timeout={timeout_seconds}s)"
             )
             try:
-                response = await asyncio.wait_for(self._read_message(), timeout=60)
+                response = await asyncio.wait_for(
+                    self._read_message(), timeout=timeout_seconds
+                )
             except asyncio.TimeoutError:
                 logger.error(
-                    f"[CALL_TOOL_TIMEOUT] Tool call timed out after 60s: {tool_name}"
+                    f"[CALL_TOOL_TIMEOUT] Tool call timed out after {timeout_seconds}s: {tool_name}"
                 )
-                raise RuntimeError(f"Tool call timed out after 60 seconds: {tool_name}")
+                raise RuntimeError(
+                    f"Tool call timed out after {timeout_seconds} seconds: {tool_name}"
+                )
 
             if response is None:
                 logger.error(
