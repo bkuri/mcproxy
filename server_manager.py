@@ -184,7 +184,12 @@ class ServerProcess:
 
     async def call_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
         """Call a tool on this server with automatic restart on crash."""
+        logger.info(f"[CALL_TOOL_START] server={self.name} tool={tool_name}")
+
         if not self.is_running():
+            logger.warning(
+                f"[CALL_TOOL_RESTART] Server '{self.name}' not running, attempting restart"
+            )
             # Try to restart if crashed
             success = await self.restart_if_needed()
             if not success:
@@ -204,15 +209,34 @@ class ServerProcess:
                 "params": {"name": tool_name, "arguments": arguments},
             }
 
+            logger.debug(f"[CALL_TOOL_SEND] Sending request to {self.name}")
             await self._send_message(request)
-            response = await asyncio.wait_for(self._read_message(), timeout=60)
+
+            logger.debug(
+                f"[CALL_TOOL_WAIT] Waiting for response from {self.name} (timeout=60s)"
+            )
+            try:
+                response = await asyncio.wait_for(self._read_message(), timeout=60)
+            except asyncio.TimeoutError:
+                logger.error(
+                    f"[CALL_TOOL_TIMEOUT] Tool call timed out after 60s: {tool_name}"
+                )
+                raise RuntimeError(f"Tool call timed out after 60 seconds: {tool_name}")
 
             if response is None:
+                logger.error(
+                    f"[CALL_TOOL_NO_RESPONSE] No response from server '{self.name}'"
+                )
                 raise RuntimeError(f"No response from server '{self.name}'")
 
             if "error" in response:
-                raise RuntimeError(f"Tool call failed: {response['error']}")
+                error_details = response.get("error", {})
+                logger.error(
+                    f"[CALL_TOOL_REMOTE_ERROR] tool={tool_name} error={error_details}"
+                )
+                raise RuntimeError(f"Tool call failed: {error_details}")
 
+            logger.info(f"[CALL_TOOL_SUCCESS] tool={tool_name}")
             return response.get("result", {})
 
     async def _discover_tools(self) -> None:

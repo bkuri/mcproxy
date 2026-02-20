@@ -182,25 +182,36 @@ async def handle_tools_call(msg_id: Any, params: Dict[str, Any]) -> Dict[str, An
         # Parse prefixed name to get server and tool
         server_name, tool_name = parse_prefixed_tool_name(prefixed_name)
 
-        logger.info(f"Calling tool '{prefixed_name}' on server '{server_name}'")
+        logger.info(f"[TOOL_CALL_START] tool={prefixed_name} server={server_name}")
 
         # Route to server
         result = await server_manager.call_tool(server_name, tool_name, arguments)
 
+        logger.info(f"[TOOL_CALL_SUCCESS] tool={prefixed_name}")
         return {"jsonrpc": "2.0", "id": msg_id, "result": result}
 
     except ValueError as e:
+        error_msg = f"Invalid tool name: {e}"
+        logger.error(f"[TOOL_CALL_NAME_ERROR] {error_msg}")
         return {
             "jsonrpc": "2.0",
             "id": msg_id,
-            "error": {"code": -32602, "message": f"Invalid tool name: {e}"},
+            "error": {"code": -32602, "message": error_msg},
         }
     except Exception as e:
-        logger.error(f"Error calling tool: {e}")
+        import traceback
+
+        error_str = str(e) if str(e) else f"{type(e).__name__}"
+        tb_str = traceback.format_exc()
+        logger.error(
+            f"[TOOL_CALL_ERROR] Error calling tool {params.get('name')}: {error_str}"
+        )
+        logger.error(f"[TOOL_CALL_TRACEBACK]\n{tb_str}")
+        # Return more informative error message
         return {
             "jsonrpc": "2.0",
             "id": msg_id,
-            "error": {"code": -32000, "message": f"Tool call failed: {e}"},
+            "error": {"code": -32000, "message": f"Tool call failed: {error_str}"},
         }
 
 
