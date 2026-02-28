@@ -18,7 +18,7 @@ from config_reloader import ConfigReloader, HotReloadServerManager
 from config_watcher import ConfigError, load_config
 from logging_config import get_logger, setup_logging
 from mcp_server import create_mcp_server
-from server import app, set_server_manager
+from server import app, init_v2_components, refresh_manifest, set_server_manager
 
 logger = get_logger(__name__)
 
@@ -110,7 +110,14 @@ Examples:
         sys.exit(1)
 
     # Initialize hot-reload capable server manager
-    hot_reload_manager = HotReloadServerManager(config)
+    def on_server_ready(server_name: str, tool_count: int) -> None:
+        """Callback when a server finishes loading its tools."""
+        logger.info(f"[SERVER_READY] {server_name} has {tool_count} tools")
+        if hot_reload_manager:
+            tools = hot_reload_manager.get_all_tools()
+            refresh_manifest(tools)
+
+    hot_reload_manager = HotReloadServerManager(config, on_server_ready=on_server_ready)
     set_server_manager(hot_reload_manager)
 
     # Spawn servers
@@ -123,6 +130,12 @@ Examples:
     tools = hot_reload_manager.get_all_tools()
     total_tools = sum(len(t) for t in tools.values())
     logger.info(f"Servers ready: {len(tools)} running with {total_tools} tools")
+
+    # Initialize v2.0 components (CapabilityRegistry, SandboxExecutor)
+    init_v2_components(
+        config, tool_executor=hot_reload_manager.call_tool, servers_tools=tools
+    )
+    logger.info("v2.0 components initialized (search/execute meta-tools ready)")
 
     # Setup config reloader (hot-reload) - skip in stdio mode
     if not args.no_reload and not args.stdio:

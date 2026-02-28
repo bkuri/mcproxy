@@ -6,7 +6,7 @@ Includes automatic restart for crashed servers.
 
 import asyncio
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from logging_config import get_logger
 
@@ -86,7 +86,7 @@ class ServerProcess:
                     "params": {
                         "protocolVersion": "2024-11-05",
                         "capabilities": {},
-                        "clientInfo": {"name": "mcproxy", "version": "1.0.0"},
+                        "clientInfo": {"name": "mcproxy", "version": "2.0.0"},
                     },
                 }
 
@@ -371,14 +371,20 @@ class ServerProcess:
 class ServerManager:
     """Manages multiple MCP server processes."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(
+        self,
+        config: Dict[str, Any],
+        on_server_ready: Optional[Callable[[str, int], None]] = None,
+    ):
         """Initialize server manager with configuration.
 
         Args:
             config: Configuration dictionary with 'servers' key
+            on_server_ready: Optional callback(server_name, tool_count) when server starts
         """
         self.config = config
         self.servers: Dict[str, ServerProcess] = {}
+        self._on_server_ready = on_server_ready
 
     async def spawn_servers(self) -> None:
         """Start all enabled servers from configuration with staggered startup."""
@@ -420,7 +426,9 @@ class ServerManager:
         """Start a server and handle failures gracefully."""
         try:
             success = await server.start()
-            if not success:
+            if success and self._on_server_ready:
+                self._on_server_ready(server.name, len(server.tools))
+            elif not success:
                 logger.error(f"Server '{server.name}' failed to start")
         except Exception as e:
             logger.error(f"Error starting server '{server.name}': {e}")

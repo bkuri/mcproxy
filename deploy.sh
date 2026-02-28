@@ -5,7 +5,7 @@ set -e
 
 # Configuration
 REMOTE_HOST="${1:-server2-auto}"
-REMOTE_PATH="/srv/containers/mcp-gateway"
+REMOTE_PATH="/srv/containers/mcproxy"
 SERVICE_NAME="mcproxy"
 
 echo "📦 Deploying MCProxy to ${REMOTE_HOST}..."
@@ -22,7 +22,7 @@ scp mcp-servers.example.json "${REMOTE_HOST}:${REMOTE_PATH}/config/mcp-servers.j
 # Step 2: Setup Python environment
 echo "🐍 Setting up Python environment..."
 ssh ${REMOTE_HOST} << 'ENDSSH'
-cd /srv/containers/mcproxy-gateway
+cd /srv/containers/mcproxy
 python3.11 -m venv venv || true
 source venv/bin/activate
 pip install --upgrade pip

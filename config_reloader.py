@@ -118,11 +118,20 @@ class ConfigReloader:
 class HotReloadServerManager:
     """Extension of ServerManager with hot-reload support."""
 
-    def __init__(self, config: Dict[str, Any]):
-        """Initialize with config and prepare for hot reloads."""
+    def __init__(
+        self,
+        config: Dict[str, Any],
+        on_server_ready: Optional[Callable[[str, int], None]] = None,
+    ):
+        """Initialize with config and prepare for hot reloads.
+
+        Args:
+            config: Configuration dictionary
+            on_server_ready: Optional callback(server_name, tool_count) when server starts
+        """
         from server_manager import ServerManager
 
-        self.manager = ServerManager(config)
+        self.manager = ServerManager(config, on_server_ready=on_server_ready)
         self.current_config = config
         self._reloading = False
 

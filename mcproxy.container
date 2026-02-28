@@ -10,10 +10,10 @@ ContainerName=mcproxy
 Network=host
 
 # Mount configuration directory
-Volume=/srv/containers/mc-gateway/config:/app/config:Z
+Volume=/srv/containers/mcproxy/config:/app/config:Z
 
 # Environment variables (loaded from .env file)
-EnvironmentFile=/srv/containers/mc-gateway/.env
+EnvironmentFile=/srv/containers/mcproxy/.env
 
 # Working directory
 WorkingDirectory=/app

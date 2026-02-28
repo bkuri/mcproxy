@@ -104,7 +104,7 @@ tool_name = f"{server_name}__{original_tool_name}"
 ## Project Structure
 
 ```
-/srv/containers/mcp-gateway/
+/srv/containers/mcproxy/
 ├── main.py              # Entry point, argument parsing
 ├── server.py            # FastAPI SSE server
 ├── server_manager.py    # Spawn/manage stdio processes
