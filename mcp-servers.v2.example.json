@@ -1,0 +1,247 @@
+{
+  "_comment": "MCProxy v2.0 Configuration - Copy to mcp-servers.json and customize",
+  "_version": "2.0",
+  
+  "manifests": {
+    "_comment": "Global startup and lifecycle settings for all MCP servers",
+    
+    "startup_dwell_secs": 2,
+    "_startup_dwell_secs_comment": "Seconds to wait after server startup before considering it healthy. Allows time for initialization (npx downloads, Docker pulls, etc.)",
+    
+    "refresh_event_hooks": {
+      "_comment": "Hooks triggered during configuration hot-reload",
+      "pre_refresh": ["health_check_all", "drain_connections"],
+      "post_refresh": ["restart_failed", "notify_monitors"],
+      "_pre_refresh_comment": "Called BEFORE applying new config - validate, drain, checkpoint",
+      "_post_refresh_comment": "Called AFTER applying new config - cleanup, notify, verify"
+    },
+    
+    "per_server_ttl": {
+      "_comment": "Time-to-live settings for automatic server lifecycle management",
+      "default_secs": 86400,
+      "_default_secs_comment": "24 hours - servers auto-restart after this duration",
+      "max_idle_secs": 3600,
+      "_max_idle_secs_comment": "1 hour - stop idle servers to save resources",
+      "enabled": false,
+      "_enabled_comment": "TTL enforcement is disabled by default for stability"
+    },
+    
+    "typed_stub_generation": {
+      "_comment": "Auto-generate TypeScript/Python type stubs for MCP tools",
+      "enabled": false,
+      "output_dir": "./stubs",
+      "languages": ["typescript", "python"],
+      "_languages_comment": "Generate .d.ts and .pyi stub files for IDE autocomplete",
+      "include_deprecated": false
+    }
+  },
+  
+  "namespaces": {
+    "_comment": "Namespace definitions for tool grouping and access control",
+    
+    "public": ["playwright", "wikipedia", "pure-md"],
+    "_public_comment": "Public namespace: tools from these servers are accessible to all clients without prefix modification. Array format for simple public exposure.",
+    
+    "crypto": {
+      "_comment": "Crypto namespace: Financial/cryptocurrency tools with shared settings",
+      "extends": "public",
+      "_extends_comment": "Inherits all settings from 'public' namespace, then overrides",
+      "sandbox": {
+        "memory_mb": 512,
+        "_memory_mb_comment": "Higher memory limit for blockchain data processing"
+      },
+      "rate_limit": {
+        "requests_per_minute": 60,
+        "_requests_per_minute_comment": "Conservative rate limiting for external APIs"
+      },
+      "servers": ["covalent", "coinmarketcap", "coinstats"]
+    },
+    
+    "system": {
+      "_comment": "System namespace: Infrastructure and admin tools",
+      "extends": null,
+      "_extends_null_comment": "Does NOT extend public - isolated namespace for security",
+      "require_auth": true,
+      "_require_auth_comment": "Requires authentication header for all tool calls",
+      "allowed_origins": ["localhost", "127.0.0.1"],
+      "_allowed_origins_comment": "Only local connections allowed for system tools",
+      "servers": ["supabase", "postgres", "redis"]
+    }
+  },
+  
+  "sandbox": {
+    "_comment": "Default sandbox/security settings applied to all servers unless overridden",
+    
+    "timeout_secs": 30,
+    "_timeout_secs_comment": "Maximum time to wait for any single tool call",
+    
+    "memory_mb": 256,
+    "_memory_mb_comment": "Memory limit per server process (enforced by cgroups if available)",
+    
+    "uv_path": "/usr/bin/uv",
+    "_uv_path_comment": "Path to uv package manager for Python-based MCP servers",
+    
+    "default_namespace": "public",
+    "_default_namespace_comment": "Namespace assigned to servers not explicitly in a namespace",
+    
+    "env_isolation": true,
+    "_env_isolation_comment": "Isolate server processes - they only see explicitly defined env vars",
+    
+    "network": {
+      "enabled": true,
+      "_enabled_comment": "Allow network access for servers that need it",
+      "allowed_hosts": ["*"],
+      "_allowed_hosts_comment": "Restrict to specific hosts for security: ['api.github.com', 'api.openai.com']"
+    },
+    
+    "filesystem": {
+      "read_only": ["/etc/ssl", "/usr/share"],
+      "_read_only_comment": "Paths mounted read-only for certificate validation, etc.",
+      "read_write": [],
+      "_read_write_comment": "Explicitly allowed write paths. Empty = no writes allowed",
+      "denied": ["/home", "/root", "/etc/shadow"],
+      "_denied_comment": "Always blocked paths regardless of other permissions"
+    }
+  },
+  
+  "servers": {
+    "_comment": "MCP server definitions - Each server runs as a separate stdio process",
+    
+    "narsil": {
+      "_comment": "Local Python MCP server (direct execution)",
+      "command": "/home/bk/.local/bin/narsil",
+      "args": [],
+      "env": {
+        "LOG_LEVEL": "INFO"
+      },
+      "namespace": "system",
+      "_namespace_comment": "Placed in 'system' namespace - isolated from public tools",
+      "sandbox": {
+        "timeout_secs": 60,
+        "_timeout_override_comment": "Longer timeout for complex analysis operations"
+      },
+      "enabled": true,
+      "_enabled_comment": "Set to false to disable without removing config"
+    },
+    
+    "github": {
+      "_comment": "GitHub MCP server (Docker-based)",
+      "command": "docker",
+      "args": [
+        "run", "--rm", "-i",
+        "-e", "GITHUB_TOKEN",
+        "ghcr.io/github/github-mcp-server"
+      ],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}",
+        "_GITHUB_TOKEN_comment": "Interpolated from environment - requires .env file"
+      },
+      "namespace": "public",
+      "sandbox": {
+        "memory_mb": 512,
+        "_memory_override_comment": "Docker needs more memory for git operations"
+      },
+      "refresh_hooks": {
+        "_comment": "Server-specific hooks (override global)",
+        "pre_start": ["pull_image"],
+        "_pre_start_comment": "Pull latest Docker image before starting"
+      },
+      "enabled": true
+    },
+    
+    "playwright": {
+      "_comment": "Playwright browser automation (npx-based)",
+      "command": "npx",
+      "args": [
+        "-y", "@anthropic-ai/mcp-server-playwright"
+      ],
+      "env": {},
+      "namespace": "public",
+      "_namespace_public_comment": "In public array - accessible without prefix",
+      "manifests": {
+        "startup_dwell_secs": 5,
+        "_startup_override_comment": "Extra time for npx to download package on first run"
+      },
+      "sandbox": {
+        "memory_mb": 1024,
+        "_memory_override_comment": "Browsers are memory-intensive",
+        "network": {
+          "enabled": true,
+          "allowed_hosts": ["*"]
+        }
+      },
+      "enabled": true
+    },
+    
+    "covalent": {
+      "_comment": "Hypothetical cryptocurrency data server",
+      "command": "uv",
+      "args": [
+        "run", "--with", "mcp-covalent",
+        "python", "-m", "mcp_covalent"
+      ],
+      "env": {
+        "COVALENT_API_KEY": "${COVALENT_API_KEY}"
+      },
+      "namespace": "crypto",
+      "_namespace_inheritance_comment": "Inherits crypto namespace settings (rate limiting, memory)",
+      "sandbox": {
+        "timeout_secs": 45,
+        "_timeout_override_comment": "Blockchain queries can be slow"
+      },
+      "enabled": true
+    },
+    
+    "supabase": {
+      "_comment": "Hypothetical Supabase database connector",
+      "command": "npx",
+      "args": [
+        "-y", "@supabase/mcp-server"
+      ],
+      "env": {
+        "SUPABASE_URL": "${SUPABASE_URL}",
+        "SUPABASE_ANON_KEY": "${SUPABASE_ANON_KEY}"
+      },
+      "namespace": "system",
+      "_namespace_system_comment": "Database access = system namespace with auth requirement",
+      "sandbox": {
+        "filesystem": {
+          "read_write": ["/tmp/supabase-cache"],
+          "_rw_override_comment": "Allow cache writes for query results"
+        }
+      },
+      "enabled": true
+    }
+  },
+  
+  "_inheritance_example": {
+    "_comment": "HOW NAMESPACE INHERITANCE WORKS",
+    "_step_1": "Server 'covalent' is in namespace 'crypto'",
+    "_step_2": "Namespace 'crypto' extends 'public' namespace",
+    "_step_3": "Inheritance chain: crypto → public → defaults",
+    "_step_4": "Settings are merged: server > namespace > parent_namespace > sandbox_defaults",
+    "_result": "covalent gets: crypto.rate_limit + public exposure + sandbox.memory_mb=512"
+  },
+  
+  "_event_hooks_reference": {
+    "_comment": "AVAILABLE EVENT HOOKS",
+    "pre_refresh": "Before config reload - return false to abort",
+    "post_refresh": "After config reload - cleanup old servers",
+    "pre_start": "Before server process starts",
+    "post_start": "After server process starts successfully",
+    "pre_stop": "Before server process stops - drain connections",
+    "post_stop": "After server process stops - cleanup resources",
+    "on_error": "When server crashes - logging, alerts",
+    "health_check": "Periodic health verification"
+  },
+  
+  "_migration_from_v1": {
+    "_comment": "MIGRATING FROM v1.x CONFIG FORMAT",
+    "step_1": "Copy 'servers' section directly - format is compatible",
+    "step_2": "Add 'manifests' section for global settings",
+    "step_3": "Add 'namespaces' to group servers logically",
+    "step_4": "Add 'sandbox' for security defaults",
+    "step_5": "Move per-server env vars to server.env (already compatible)",
+    "backward_compatible": "v1 configs work in v2 - new sections are optional"
+  }
+}

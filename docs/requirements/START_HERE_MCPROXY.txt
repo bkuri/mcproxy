@@ -1,0 +1,178 @@
+================================================================================
+                    MCPROXY DEBUGGING - START HERE
+================================================================================
+
+Location: /tmp/
+Total Documents: 4 files you need to read
+
+START WITH THIS ORDER:
+1. /tmp/README.md (5 min) - Overview of all docs
+2. /tmp/MCPROXY_SESSION_CONTEXT.md (10 min) - Quick reference  
+3. /tmp/MCPROXY_DEBUG_GUIDE.md (30 min) - Detailed technical guide
+4. /tmp/WORK_SUMMARY.md (as reference) - Full project history
+
+================================================================================
+                              THE PROBLEM
+================================================================================
+
+MCProxy HTTP gateway cannot forward tool calls to jesse-mcp subprocess.
+
+When you make a curl request:
+  curl -X POST http://localhost:12010/message ...
+  
+You get back:
+  {"error": "Tool call failed: "}  ← Empty error message!
+
+Jesse-MCP code is working (81 tests pass).
+The issue is in MCProxy's subprocess communication.
+
+================================================================================
+                           WHAT YOU NEED TO DO
+================================================================================
+
+Phase 1: Gather Information (30 min)
+  ├─ Check if jesse-mcp subprocess is running
+  ├─ Check mcproxy logs for errors
+  ├─ Test subprocess directly with stdio MCP
+  ├─ Enable debug logging in mcproxy/server.py
+  └─ Make a test call and capture the error
+
+Phase 2: Identify Root Cause (30 min)
+  └─ Determine which hypothesis is correct:
+     1. Empty error due to subprocess crash
+     2. Message format issue  
+     3. Environment variable not passed
+     4. Timeout on subprocess communication
+
+Phase 3: Implement Fix (1 hour)
+  └─ Apply fix based on root cause
+
+Phase 4: Test & Verify (30 min)
+  ├─ Restart mcproxy
+  ├─ Run test checklist
+  └─ Verify real backtest data (not mock)
+
+TOTAL TIME: 2-3 hours
+
+================================================================================
+                          KEY FILES TO EDIT
+================================================================================
+
+PRIMARY: /srv/containers/mcproxy/server.py
+  - Main HTTP API handler
+  - Contains handle_tools_call() function
+  - This is where you'll add debug logging first
+
+SECONDARY: /srv/containers/mcproxy/main.py
+  - Process startup code
+  - May need to fix env var passing
+
+REFERENCE: /srv/containers/mcproxy/config/mcp-servers.json
+  - Check that JESSE_URL and JESSE_PASSWORD are configured
+
+DO NOT EDIT:
+  - /srv/mcp-sources/jesse-mcp/ (already working perfectly)
+
+================================================================================
+                        QUICK DIAGNOSTIC COMMANDS
+================================================================================
+
+# Is jesse-mcp running?
+ps aux | grep jesse-mcp | grep -v grep
+
+# Can mcproxy list tools?
+curl http://localhost:12010/tools | python3 -m json.tool | head -20
+
+# Try a simple tool (will fail currently):
+curl -X POST http://localhost:12010/message \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"jesse_status","arguments":{}}}'
+
+# Check mcproxy logs:
+journalctl -u mcproxy -n 50 --no-pager
+
+================================================================================
+                          SUCCESS CRITERIA
+================================================================================
+
+You'll know you've fixed it when:
+  ✓ Tool calls return proper JSON responses (not empty errors)
+  ✓ jesse_status tool returns data
+  ✓ strategy_list tool returns list of strategies
+  ✓ backtest tool returns real metrics (not mock)
+  ✓ "_mock_data": false in results (not true)
+  ✓ Backtest takes 2-3 minutes (async polling works)
+
+================================================================================
+                         MOST LIKELY FIXES
+================================================================================
+
+Fix 1: Add Error Message Logging to mcproxy (HIGH PRIORITY)
+  - Edit /srv/containers/mcproxy/server.py
+  - Find handle_tools_call() function
+  - Add detailed logging with traceback
+  - See MCPROXY_DEBUG_GUIDE.md Step 3 for exact code
+
+Fix 2: Verify Environment Variables Passed (HIGH PRIORITY)  
+  - Check if JESSE_URL and JESSE_PASSWORD are in subprocess env
+  - See MCPROXY_DEBUG_GUIDE.md Step 5 for verification
+
+Fix 3: Check for Subprocess Crashes (MEDIUM PRIORITY)
+  - Add health check for subprocess
+  - Log stderr from subprocess
+
+Fix 4: Handle Tool Call Timeouts (MEDIUM PRIORITY)
+  - Add timeout handling with proper error messages
+  - Increase timeout if needed (300s for backtests)
+
+================================================================================
+                      DOCUMENT REFERENCE GUIDE
+================================================================================
+
+For architecture overview:
+  → /tmp/WORK_SUMMARY.md (search for "Architecture Overview")
+
+For investigation procedures:
+  → /tmp/MCPROXY_DEBUG_GUIDE.md (search for "Investigation Steps")
+
+For specific fixes to try:
+  → /tmp/MCPROXY_DEBUG_GUIDE.md (search for "Fixes to Try")
+
+For quick reference commands:
+  → /tmp/MCPROXY_SESSION_CONTEXT.md (search for "SSH Commands")
+
+For 4-phase approach:
+  → /tmp/MCPROXY_SESSION_CONTEXT.md (search for "Recommended Approach")
+
+================================================================================
+                       TROUBLESHOOTING TIPS
+================================================================================
+
+Can't SSH to server2?
+  ssh server2-auto  (use -auto for automated access)
+
+Jesse API not responding?
+  curl http://localhost:9100/health
+  Check: docker ps | grep jesse
+
+MCProxy systemd service failing?
+  journalctl -u mcproxy -f  (follow logs in real-time)
+  
+Still getting empty error messages?
+  That's the exact problem we're solving!
+  → Implement "Fix 1: Add Error Message Logging"
+
+================================================================================
+                           YOU ARE HERE
+================================================================================
+
+Start with: /tmp/README.md
+Then read: /tmp/MCPROXY_SESSION_CONTEXT.md  
+Then use:  /tmp/MCPROXY_DEBUG_GUIDE.md
+
+All documents prepared. All context provided.
+Ready to fix the MCProxy integration!
+
+Good luck! 🚀
+
+================================================================================

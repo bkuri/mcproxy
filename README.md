@@ -1,486 +1,286 @@
-# MCProxy - MCP Gateway Aggregator
+# MCProxy v2.0 - MCP Gateway with Code Mode
 
-A lightweight, configuration-driven MCP (Model Context Protocol) gateway that aggregates multiple stdio MCP servers through a single SSE endpoint.
+A lightweight MCP gateway that aggregates multiple stdio MCP servers through a single SSE endpoint. **v2.0 introduces Code Mode** — a Forgemax-inspired architecture that reduces context window usage by ~90% (15K → 1K tokens).
 
-**Status**: Beta - Internal Use  
-**Python Version**: 3.11+  
-**Memory**: <512MB  
-**Port**: 12010 (default)  
-**Security**: Internal network only (no authentication yet)
+**Status**: v2.0.0 - Code Mode Release  
+**Python**: 3.11+ | **Memory**: <512MB | **Port**: 12010
 
 ---
 
 ## Features
 
+### v2.0 Code Mode (New)
+
+- ✅ **Code Mode**: Tool discovery + execution via `search` and `execute` meta-tools
+- ✅ **Namespace Isolation**: Group servers by privilege level with inheritance
+- ✅ **Sandboxed Execution**: uv subprocess with memory limits, network controls
+- ✅ **Event-Driven Manifest**: Reactive refresh on config/health changes
+- ✅ **Typed Stubs**: Auto-generate TypeScript/Python stubs for IDE autocomplete
+
+### Core Features
+
 - ✅ **Dual Mode**: HTTP/SSE endpoint OR native MCP server over stdio
 - ✅ **Auto-Restart**: Crashed servers auto-recover (max 3 attempts)
-- ✅ **Zero-Config Tool Prefixing**: Automatic namespace resolution
-- ✅ **Environment Variable Interpolation**: `${VAR_NAME}` in JSON configs
-- ✅ **Low Memory Footprint**: <1GB with 60+ tools across 13 servers
-- ✅ **Syslog + Stdout Logging**: Comprehensive observability
+- ✅ **Hot-Reload**: Zero-downtime config changes
+- ✅ **Environment Interpolation**: `${VAR_NAME}` in JSON configs
 - ✅ **Docker/Podman Ready**: Containerized deployment
-- ✅ **Advanced Reasoning Tools**: Think Tool, Sequential Thinking, Atom of Thoughts
-- ✅ **52+ Aggregated Tools**: Seamless integration of multiple MCP servers
 
 ---
 
 ## Quick Start
 
-### Method 1: Native Deployment (Recommended for production)
-
 ```bash
-# Clone or copy files
-cd /srv/containers/mcp-gateway
-
-# Create virtual environment
-python3.11 -m venv venv
-source venv/bin/activate
+# Setup
+python3.11 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
+cp mcp-servers.v2.example.json config/mcp-servers.json
 
-# Create config directory
-mkdir -p config
-
-# Copy example config and edit
-cp mcp-servers.example.json config/mcp-servers.json
-nano config/mcp-servers.json
-
-# Set environment variables
-cp .env.example .env
-nano .env
-# Add your API keys to .env
-
-# Run development server
-python main.py --log --port 12010 --config config/mcp-servers.json
+# Start server
+python main.py --config config/mcp-servers.json --log
 ```
 
-### Method 2: Podman Compose (Easy deployment)
+### Code Mode: Search for Tools
 
 ```bash
-# Prepare environment
-cp .env.example .env
-nano .env
-# Add your API keys
-
-# Prepare config
-mkdir -p config
-cp mcp-servers.example.json config/mcp-servers.json
-nano config/mcp-servers.json
-
-# Build and start
-podman-compose up -d
-
-# View logs
-podman-compose logs -f
-
-# Stop
-podman-compose down
+curl -X POST http://localhost:12010/message \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search","arguments":{"query":"github","namespace":"public"}}}'
 ```
 
-### Method 3: Quadlet (Systemd-native container)
+### Code Mode: Execute Code
 
 ```bash
-# Copy quadlet to system directory
-sudo cp mcproxy.container /etc/containers/systemd/mcproxy.container
-
-# Reload systemd
-sudo systemctl daemon-reload
-
-# Prepare environment and config (as in Method 1)
-# ...
-
-# Start service
-sudo systemctl enable mcproxy.service
-sudo systemctl start mcproxy.service
-
-# View logs
-sudo journalctl -u mcproxy -f
+curl -X POST http://localhost:12010/message \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"execute","arguments":{"namespace":"public","code":"async def run():\n    return await api.server(\"github\").repos.list(owner=\"octocat\")"}}}'
 ```
 
 ---
 
-## Configuration
+## Code Mode Architecture
 
-### mcp-servers.json Format
+### The Problem
+
+60+ tools = ~15K tokens of schemas, consuming most context before any work begins.
+
+### The Solution: Meta-Tools
+
+| Tool | Purpose | Context |
+|------|---------|---------|
+| `search` | Discover tools by query/namespace | ~500 tokens |
+| `execute` | Run Python with discovered tools | ~500 tokens |
+
+**Total**: ~1K tokens (~90% reduction)
+
+### Performance Comparison: V1 vs V2
+
+| Metric | V1 (Traditional) | V2 (Code Mode) | Improvement |
+|--------|------------------|----------------|-------------|
+| **Initial tools/list** | 108KB (~27K tokens) | 1KB (~250 tokens) | **99% smaller** |
+| **Tool execution** | 1.9ms | 0.9ms | **2x faster** |
+| **Discoverability** | Must dump all schemas | Progressive discovery | **On-demand** |
+
+### Progressive Discovery (V2 Only)
+
+```python
+# max_depth=0: Server names only (~300 bytes)
+search(query="", max_depth=0)
+
+# max_depth=1: Server + category info (~2KB)
+search(query="github", max_depth=1)
+
+# max_depth=2: Tool names (~14KB)
+search(query="github", max_depth=2)
+
+# max_depth=3: Full schemas (only for specific tools)
+search(query="github.repos.list", max_depth=3)
+```
+
+This means the LLM can start with lightweight queries and fetch detailed schemas only when needed - achieving the ~90% context reduction target.
+
+### API Reference
+
+```python
+# Get manifest (all available tools)
+api.manifest()
+
+# Call tool directly
+await api.call_tool("server_name", "tool_name", {"arg": "value"})
+
+# Use typed proxy (if stubs generated)
+await api.server("github").repos.list(owner="octocat")
+```
+
+---
+
+## Namespace Configuration
+
+### Hierarchy Example
+
+```
+system (isolated, requires auth)
+   └── supabase, postgres
+
+crypto (extends public)
+   └── covalent, coinmarketcap
+
+public (default, no auth)
+   └── playwright, wikipedia, github
+```
+
+### Config Example
 
 ```json
 {
-  "servers": [
-    {
-      "name": "wikipedia",
-      "command": "/usr/bin/npx",
-      "args": ["-y", "wikipedia-mcp"],
-      "env": {
-        "PATH": "/usr/bin:/usr/local/bin:/bin"
-      },
-      "timeout": 60,
+  "namespaces": {
+    "public": ["playwright", "wikipedia"],
+    
+    "crypto": {
+      "extends": "public",
+      "sandbox": { "memory_mb": 512 },
+      "rate_limit": { "requests_per_minute": 60 },
+      "servers": ["covalent"]
+    },
+    
+    "system": {
+      "extends": null,
+      "require_auth": true,
+      "allowed_origins": ["localhost"],
+      "servers": ["supabase"]
+    }
+  }
+}
+```
+
+**Inheritance**: `server > namespace > parent_namespace > sandbox_defaults`
+
+---
+
+## Sandbox Security
+
+```json
+{
+  "sandbox": {
+    "timeout_secs": 30,
+    "memory_mb": 256,
+    "env_isolation": true,
+    "network": {
+      "enabled": true,
+      "allowed_hosts": ["api.github.com"]
+    },
+    "filesystem": {
+      "read_only": ["/etc/ssl"],
+      "denied": ["/home", "/root"]
+    }
+  }
+}
+```
+
+### Blocked Imports
+
+`subprocess`, `os.system`, `socket` (raw), `pickle`, `marshal`, `importlib`
+
+---
+
+## Configuration Reference
+
+```json
+{
+  "manifests": {
+    "startup_dwell_secs": 2,
+    "refresh_event_hooks": {
+      "pre_refresh": ["health_check_all"],
+      "post_refresh": ["restart_failed"]
+    },
+    "typed_stub_generation": {
+      "enabled": false,
+      "output_dir": "./stubs"
+    }
+  },
+  
+  "namespaces": { /* see above */ },
+  "sandbox": { /* see above */ },
+  
+  "servers": {
+    "github": {
+      "command": "docker",
+      "args": ["run", "--rm", "-i", "-e", "GITHUB_TOKEN", "ghcr.io/github/github-mcp-server"],
+      "env": { "GITHUB_TOKEN": "${GITHUB_TOKEN}" },
+      "namespace": "public",
       "enabled": true
     }
-  ]
-}
-```
-
-### Environment Variables
-
-Place API keys in `.env` (not committed to git):
-
-```
-PERPLEXITY_API_KEY=pplx-xxxxx
-PUREMD_API_KEY=pmd-xxxxx
-```
-
-Reference in config using `${VAR_NAME}`:
-
-```json
-"env": {
-  "PERPLEXITY_API_KEY": "${PERPLEXITY_API_KEY}",
-  "PERPLEXITY_MODEL": "sonar"
-}
-```
-
----
-
-## Native MCP Server Mode (Stdio)
-
-MCProxy can run as a native MCP server over stdio, making it a standard MCP server that works with any MCP client (like Claude Desktop, other AI assistants, etc.).
-
-### Why Use Native MCP Server Mode?
-
-- **No HTTP overhead**: Direct stdio communication
-- **Standard MCP protocol**: Works with any MCP-compatible client
-- **Same event loop**: No async/threading complications
-- **Easy integration**: Single executable that handles all MCP servers
-
-### Running MCProxy as MCP Server
-
-```bash
-# Start MCProxy in stdio mode
-python main.py --stdio --config mcp-servers.json
-
-# MCProxy will:
-# 1. Load all configured MCP servers
-# 2. Expose them through a single 'call_tool' MCP method
-# 3. Accept MCP protocol messages over stdin/stdout
-```
-
-### Using in Claude Desktop
-
-Add to your `claude_desktop_config.json`:
-
-```json
-{
-  "mcServers": {
-    "mcproxy": {
-      "command": "python",
-      "args": ["/path/to/mcproxy/main.py", "--stdio", "--config", "/path/to/mcp-servers.json"],
-      "env": {
-        "PERPLEXITY_API_KEY": "your-key-here",
-        "PUREMD_API_KEY": "your-key-here"
-      }
-    }
   }
 }
 ```
 
-Then in Claude, you can call any tool via the `call_tool` method:
+---
 
-```
-Call the fear_greed_index tool:
-  Tool: call_tool
-  Arguments: {
-    "name": "fear_greed_index__get_fear_greed_index",
-    "arguments": {}
-  }
-```
+## Migration from v1.x
 
-### Testing MCP Server Mode
+### Breaking Changes
 
-Run the automated test:
+| v1.x | v2.0 |
+|------|------|
+| `servers` array | `servers` object (keyed by name) |
+| Flat tool list | Namespaced tools |
+| Direct tool calls | `search` + `execute` meta-tools |
 
-```bash
-# Requires bash and python
-bash tests/test_mcp_stdio_mode.sh
-```
+### Migration Steps
 
-Expected output:
-```
-[TEST 1] Initialize MCP server
-✓ PASS: Initialize successful
+```json
+// v1.x
+"servers": [{ "name": "github", ... }]
 
-[TEST 2] List available tools
-✓ PASS: Found 1 tool(s)
-
-[TEST 3] Call fear_greed_index__get_fear_greed_index
-✓ PASS: Tool call successful
-
-...
-============================================================
-Test Results: 5 passed, 0 failed
-============================================================
+// v2.0
+"servers": { "github": { ... } }
 ```
 
-### Architecture
-
-When running in stdio mode:
-
-1. **MCProxy main process** starts in async/await event loop
-2. **FastMCP server** runs async too (using `run_async()`)
-3. **Server manager** spawns all configured MCP servers
-4. **Incoming MCP requests** are routed through `call_tool` method
-5. **Tool results** are formatted and returned via MCP protocol
-
-This avoids event loop conflicts by keeping everything in a single asyncio event loop.
+v1.x configs work with automatic migration. New sections are optional.
 
 ---
 
-## Updating Server Configuration
-
-### Adding/Removing MCP Servers
-
-When you need to add, remove, or modify MCP servers:
-
-1. **Edit the configuration**:
-   ```bash
-   # On server2
-   nano /srv/containers/mcproxy/config/mcp-servers.json
-   ```
-
-2. **Restart MCProxy**:
-   ```bash
-   sudo systemctl restart mcproxy
-   ```
-
-3. **Restart your MCP client** (e.g., OpenCode):
-   - OpenCode and other HTTP MCP clients cache the tool list at connection time
-   - Restarting the client forces it to request the updated tool list
-
-### Why Configuration Changes Require Client Restart
-
-MCProxy's configuration changes take effect immediately on the server side, but:
-- HTTP/SSE MCP clients (including OpenCode) cache the tool list for performance
-- The MCP protocol itself doesn't provide a push mechanism for tool list updates
-- This is standard behavior across all HTTP-based MCP implementations
-
-You can verify new tools are available without restarting your client:
-```bash
-curl http://192.168.50.71:12010/tools | grep "your-new-tool"
-```
-
----
-
-## Command-Line Options
+## CLI Options
 
 ```bash
 python main.py [OPTIONS]
 
-Options:
-  --stdio            Run as native MCP server over stdio (for direct MCP client integration)
-  --log              Log to stdout instead of syslog (useful for debugging)
-  --port PORT         Port to listen on (default: 12010, HTTP mode only)
-  --config PATH       Path to mcp-servers.json (default: config/mcp-servers.json)
-  --host HOST         Host to bind to (default: 0.0.0.0, HTTP mode only)
-  --no-reload        Disable hot-reload configuration watcher
-  --reload-interval SECONDS  Config check interval (default: 1.0)
-
-Examples:
-  # HTTP/SSE mode (default)
-  python main.py --log --port 12010
-  
-  # Native MCP server mode
-  python main.py --stdio --config mcp-servers.json
-  
-  # Disable hot-reload
-  python main.py --stdio --no-reload
+  --stdio              Native MCP server over stdio
+  --log                Log to stdout (debugging)
+  --port PORT          Port (default: 12010)
+  --config PATH        Config file path
+  --no-reload          Disable hot-reload
 ```
-
----
-
-## Testing
-
-### Test SSE Endpoint
-
-```bash
-curl -N http://localhost:12010/sse
-```
-
-### List Tools
-
-```bash
-curl -X POST http://localhost:12010/sse \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
-```
-
-### Call Tool
-
-```bash
-curl -X POST http://localhost:12010/sse \
-  -H "Content-Type: application/json" \
-  -d '{
-    "jsonrpc":"2.0",
-    "id":1,
-    "method":"tools/call",
-    "params":{
-      "name":"wikipedia__search",
-      "arguments":{"query":"Bitcoin"}
-    }
-  }'
-```
-
-### Test Thinking Tools
-
-MCProxy includes powerful reasoning tools for complex problem-solving:
-
-```bash
-# Quick test all 4 thinking tools
-bash tests/test_thinking_tools_comparison.sh
-
-# Run against custom server
-bash tests/test_thinking_tools_comparison.sh http://your-server:12010
-```
-
-**Available thinking tools:**
-- **think_tool** - Simple single-thought reasoning (~1s)
-- **sequential_thinking** - Multi-step structured reasoning with branching (~2s/step)
-- **atom_of_thoughts** - Complex atomic reasoning with verification (~3s)
-- **atom_of_thoughts_light** - Fast atomic analysis (~1.5s)
-
-See [THINKING_TOOLS_QUICK_REFERENCE.md](./THINKING_TOOLS_QUICK_REFERENCE.md) for API reference and [TESTING_THINKING_TOOLS.md](./TESTING_THINKING_TOOLS.md) for comprehensive testing guide.
-
----
-
-## MCP Server Configuration
-
-### Adding New MCP Servers
-
-Edit `mcp-servers.json`:
-
-```json
-{
-  "name": "my_new_server",
-  "command": "/usr/bin/npx",
-  "args": ["-y", "my-mcp-server"],
-  "env": {
-    "PATH": "/usr/bin:/usr/local/bin:/bin",
-    "API_KEY": "${MY_API_KEY}"
-  },
-  "timeout": 60,
-  "enabled": true
-}
-```
-
-**Hot-reload** will automatically detect changes and restart affected servers within 1 second.
-
-### Popular MCP Servers
-
-| Server | Command | Package |
-|--------|----------|----------|
-| Wikipedia | `npx -y wikipedia-mcp` | npm |
-| YouTube | `npx -y @anaisbetts/mcp-youtube` | npm |
-| Tmux | `npx -y @executeautomation/tmux-mcp-server` | npm |
-| Perplexity | `uvx perplexity-mcp` | Python/uv |
-| Playwright | `uvx @executeautomation/playwright-mcp-server` | Python/uv |
 
 ---
 
 ## Deployment
 
-### Production Checklist
+```bash
+# Podman Compose
+cp .env.example .env
+cp mcp-servers.v2.example.json config/mcp-servers.json
+podman-compose up -d
 
-- [ ] Configure `mcp-servers.json` with all required MCP servers
-- [ ] Set API keys in `.env` file
-- [ ] Adjust port if needed (default: 12010)
-- [ ] Enable syslog logging (remove `--log` flag for production)
-- [ ] Set resource limits (512M memory recommended)
-- [ ] Configure hot-reload (default: enabled)
-- [ ] Test all tools before going live
-- [ ] Set up monitoring (journalctl -u mcproxy -f)
-
-### Systemd Service (Native)
-
-Create `/etc/systemd/system/mcproxy.service`:
-
-```ini
-[Unit]
-Description=MCProxy - MCP Gateway Aggregator
-Documentation=https://github.com/mcproxy/mcproxy
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-User=server
-WorkingDirectory=/srv/containers/mcp-gateway
-Environment="PATH=/srv/containers/mcproxy/gateway/venv/bin:/usr/local/bin:/usr/bin"
-EnvironmentFile=/srv/containers/mcproxy/gateway/.env
-ExecStart=/srv/containers/mcproxy/gateway/venv/bin/python main.py --config /srv/containers/mcproxy/gateway/config/mcp-servers.json
-
-# Resource limits
-MemoryMax=512M
-CPUQuota=50%
-
-# Restart policy
-Restart=always
-RestartSec=10
-
-# Logging
-StandardOutput=syslog
-StandardError=syslog
-SyslogIdentifier=mcproxy
-
-[Install]
-WantedBy=multi-user.target
+# Quadlet (Systemd)
+sudo cp mcproxy.container /etc/containers/systemd/
+sudo systemctl enable --now mcproxy.service
 ```
 
 ---
 
 ## Troubleshooting
 
-### Server Won't Start
-
 ```bash
-# Check logs
-tail -f /tmp/mcproxy.log
+# Test search
+curl -X POST http://localhost:12010/message \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search","arguments":{"query":"test"}}}'
 
-# Check config syntax
+# Check sandbox logs
+journalctl -u mcproxy | grep -i "sandbox\|blocked"
+
+# Validate config
 python -m json.tool config/mcp-servers.json
-
-# Check port availability
-sudo ss -tlnp | grep :12010
-```
-
-### MCP Server Fails to Initialize
-
-```bash
-# Check MCProxy logs
-sudo journalctl -u mcproxy -f
-
-# Test MCP server command manually
-/usr/bin/npx -y wikipedia-mcp
-
-# Check API keys
-env | grep API_KEY
-```
-
-### Memory Issues
-
-```bash
-# Check memory usage
-sudo systemctl status mcproxy
-# Look for: "Mem peak:" value
-
-# Increase limit in systemd or quadlet
-MemoryMax=1024M
-```
-
-### Hot-Reload Not Working
-
-```bash
-# Check config file permissions (must be readable)
-ls -la config/mcp-servers.json
-
-# Verify reload interval
-# Default is 1.0 seconds, increase if needed:
-python main.py --reload-interval 5.0
 ```
 
 ---
@@ -488,28 +288,29 @@ python main.py --reload-interval 5.0
 ## Architecture
 
 ```
-mcp-servers.json (config)
-        ↓
-    [Config Watcher] ← Polls every 1s
-        ↓
-    [HTTP SSE Server]
-    (FastAPI on 12010)
-        ↓
-    [Server Manager]
-    (spawns stdio processes)
-        ↓
-    [Tool Aggregator]
-    (prefixes: server__tool)
-        ↓
-    [Logging System]
-    (syslog + stdout)
+mcp-servers.v2.json
+        │
+        ▼
+  [Manifests] → Event hooks, TTL, stubs
+        │
+        ▼
+ [Namespaces] → Inheritance, access control
+        │
+        ▼
+   [Sandbox] → Resource limits
+        │
+        ▼
+ [Code Mode] → search + execute
+        │
+        ▼
+[Server Manager] → uv subprocesses
 ```
 
 ---
 
 ## Dependencies
 
-```txt
+```
 fastapi==0.104.0
 uvicorn==0.24.0
 python-json-logger==2.0.7
@@ -517,35 +318,18 @@ python-json-logger==2.0.7
 
 ---
 
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
-
----
-
-## License
-
-MIT License
-
----
-
-## Roadmap
-
-Future enhancements (not yet implemented):
-- [ ] Authentication & authorization
-- [ ] TLS/SSL support
-- [ ] Metrics & monitoring dashboard
-- [ ] Request rate limiting
-- [ ] Load balancing for multiple gateways
-- [ ] Tool-level access control
-
 ## Support
 
-For issues, questions, or contributions:
-- **GitHub**: https://github.com/bkuri/mcproxy
-- **Issues & Bugs**: https://github.com/bkuri/mcproxy/issues
-- **Discussions**: https://github.com/bkuri/mcproxy/discussions
+**GitHub**: https://github.com/bkuri/mcproxy  
+**Issues**: https://github.com/bkuri/mcproxy/issues
+
+---
+
+## Acknowledgments
+
+MCProxy v2.0's Code Mode architecture was inspired by **[Forgemax](https://github.com/postrv/forgemax)** — a Rust-based MCP gateway that introduced the concept of collapsing N servers × M tools into just 2 meta-tools (`search` + `execute`) for massive context reduction.
+
+Key concepts adopted from Forgemax:
+- Progressive tool discovery via searchable capability manifest
+- Sandboxed code execution for tool composition
+- Context window reduction (15K → 1K tokens)

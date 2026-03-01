@@ -8,7 +8,7 @@ import asyncio
 import json
 from typing import Any, Callable, Dict, List, Optional
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from api_manifest import CapabilityRegistry, EventHookManager, ManifestQuery
@@ -22,6 +22,8 @@ capability_registry: Optional[CapabilityRegistry] = None
 event_hook_manager: Optional[EventHookManager] = None
 sandbox_executor: Optional[SandboxExecutor] = None
 _tool_executor: Optional[Callable] = None
+
+_connection_namespaces: Dict[int, str] = {}
 
 app = FastAPI(title="MCProxy", version="2.0.0")
 
@@ -76,31 +78,114 @@ META_TOOLS = [
 ]
 
 
-@app.get("/sse")
-async def sse_endpoint(request: Request) -> StreamingResponse:
-    """SSE endpoint for MCP protocol.
+def _validate_namespace(namespace: str) -> bool:
+    """Validate that a namespace exists in the registry.
 
-    Handles MCP initialization, tool listing, and tool calls over SSE.
+    Args:
+        namespace: Namespace name to validate
+
+    Returns:
+        True if namespace exists, False otherwise
     """
-    logger.info(f"New SSE connection from {request.client}")
+    if capability_registry is None:
+        return False
+    return namespace in capability_registry._namespaces
+
+
+def _get_namespace_from_request(request: Request) -> Optional[str]:
+    """Extract namespace from request headers.
+
+    Args:
+        request: FastAPI request object
+
+    Returns:
+        Namespace name from X-Namespace header, or None
+    """
+    return request.headers.get("X-Namespace")
+
+
+def _resolve_default_namespace() -> str:
+    """Get the default namespace name.
+
+    Returns:
+        Default namespace name (empty string if no default set)
+    """
+    if capability_registry is None:
+        return ""
+    namespaces = capability_registry._namespaces
+    if "default" in namespaces:
+        return "default"
+    if "public" in namespaces:
+        return "public"
+    return ""
+
+
+@app.get("/sse/{namespace}")
+async def sse_endpoint_namespaced(
+    namespace: str, request: Request
+) -> StreamingResponse:
+    """SSE endpoint with namespace isolation.
+
+    Args:
+        namespace: Namespace name for server filtering
+        request: FastAPI request object
+
+    Returns:
+        StreamingResponse for SSE events
+
+    Raises:
+        HTTPException: If namespace is invalid
+    """
+    if not _validate_namespace(namespace):
+        logger.warning(f"[SSE_NAMESPACE] Invalid namespace: {namespace}")
+        raise HTTPException(status_code=404, detail=f"Namespace not found: {namespace}")
+
+    header_ns = _get_namespace_from_request(request)
+    effective_ns = header_ns if header_ns else namespace
+
+    if header_ns and header_ns != namespace:
+        logger.warning(
+            f"[SSE_NAMESPACE] URL namespace '{namespace}' overridden by header '{header_ns}'"
+        )
+        if not _validate_namespace(header_ns):
+            raise HTTPException(
+                status_code=404, detail=f"Namespace not found: {header_ns}"
+            )
+        effective_ns = header_ns
+
+    logger.info(
+        f"[SSE_NAMESPACE] New connection from {request.client} namespace={effective_ns}"
+    )
 
     async def event_stream():
         """Generate SSE events."""
         try:
-            yield f"event: endpoint\ndata: {json.dumps({'uri': '/message'})}\n\n"
+            endpoint_data: Dict[str, Any] = {
+                "uri": "/message",
+                "namespace": effective_ns,
+            }
+            yield f"event: endpoint\ndata: {json.dumps(endpoint_data)}\n\n"
 
             while True:
                 if await request.is_disconnected():
-                    logger.info("Client disconnected")
+                    logger.info(
+                        f"[SSE_NAMESPACE] Client disconnected namespace={effective_ns}"
+                    )
                     break
 
                 await asyncio.sleep(30)
-                yield f"event: heartbeat\ndata: {json.dumps({'timestamp': asyncio.get_event_loop().time()})}\n\n"
+                heartbeat_data: Dict[str, Any] = {
+                    "timestamp": asyncio.get_event_loop().time(),
+                    "namespace": effective_ns,
+                }
+                yield f"event: heartbeat\ndata: {json.dumps(heartbeat_data)}\n\n"
 
         except asyncio.CancelledError:
-            logger.info("SSE connection cancelled")
+            logger.info(
+                f"[SSE_NAMESPACE] Connection cancelled namespace={effective_ns}"
+            )
         except Exception as e:
-            logger.error(f"SSE error: {e}")
+            logger.error(f"[SSE_NAMESPACE] Error namespace={effective_ns}: {e}")
 
     return StreamingResponse(
         event_stream(),
@@ -108,7 +193,66 @@ async def sse_endpoint(request: Request) -> StreamingResponse:
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
+            "X-Namespace": effective_ns,
         },
+    )
+
+
+@app.get("/sse")
+async def sse_endpoint(request: Request) -> StreamingResponse:
+    """SSE endpoint for MCP protocol.
+
+    Handles MCP initialization, tool listing, and tool calls over SSE.
+    Supports X-Namespace header for namespace context.
+    """
+    header_ns = _get_namespace_from_request(request)
+    default_ns = _resolve_default_namespace()
+    effective_ns = header_ns if header_ns else default_ns
+
+    if header_ns and not _validate_namespace(header_ns):
+        logger.warning(f"[SSE] Invalid X-Namespace header: {header_ns}")
+        raise HTTPException(status_code=404, detail=f"Namespace not found: {header_ns}")
+
+    ns_info = f" namespace={effective_ns}" if effective_ns else ""
+    logger.info(f"[SSE] New connection from {request.client}{ns_info}")
+
+    async def event_stream():
+        """Generate SSE events."""
+        try:
+            endpoint_data = {"uri": "/message"}
+            if effective_ns:
+                endpoint_data["namespace"] = effective_ns
+            yield f"event: endpoint\ndata: {json.dumps(endpoint_data)}\n\n"
+
+            while True:
+                if await request.is_disconnected():
+                    logger.info(f"[SSE] Client disconnected{ns_info}")
+                    break
+
+                await asyncio.sleep(30)
+                heartbeat_data: Dict[str, Any] = {
+                    "timestamp": asyncio.get_event_loop().time()
+                }
+                if effective_ns:
+                    heartbeat_data["namespace"] = effective_ns
+                yield f"event: heartbeat\ndata: {json.dumps(heartbeat_data)}\n\n"
+
+        except asyncio.CancelledError:
+            logger.info(f"[SSE] Connection cancelled{ns_info}")
+        except Exception as e:
+            logger.error(f"[SSE] Error{ns_info}: {e}")
+
+    headers = {
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+    }
+    if effective_ns:
+        headers["X-Namespace"] = effective_ns
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers=headers,
     )
 
 
@@ -124,6 +268,7 @@ async def handle_message(request: Request) -> Dict[str, Any]:
 
     Processes initialize, tools/list, and tools/call requests.
     v2.0 only supports search and execute meta-tools.
+    Supports X-Namespace header for namespace context.
     """
     try:
         body = await request.json()
@@ -131,14 +276,24 @@ async def handle_message(request: Request) -> Dict[str, Any]:
         msg_id = body.get("id")
         params = body.get("params", {})
 
-        logger.debug(f"Received message: {method}")
+        header_ns = _get_namespace_from_request(request)
+        if header_ns and not _validate_namespace(header_ns):
+            logger.warning(f"[MESSAGE] Invalid X-Namespace header: {header_ns}")
+            return {
+                "jsonrpc": "2.0",
+                "id": msg_id,
+                "error": {"code": -32602, "message": f"Invalid namespace: {header_ns}"},
+            }
+
+        ns_context = f" namespace={header_ns}" if header_ns else ""
+        logger.debug(f"[MESSAGE] method={method}{ns_context}")
 
         if method == "initialize":
-            return await handle_initialize(msg_id, params)
+            return await handle_initialize(msg_id, params, namespace=header_ns)
         elif method == "tools/list":
-            return await handle_tools_list(msg_id)
+            return await handle_tools_list(msg_id, namespace=header_ns)
         elif method == "tools/call":
-            return await handle_tools_call(msg_id, params)
+            return await handle_tools_call(msg_id, params, namespace=header_ns)
         else:
             return {
                 "jsonrpc": "2.0",
@@ -153,36 +308,82 @@ async def handle_message(request: Request) -> Dict[str, Any]:
         return {"jsonrpc": "2.0", "error": {"code": -32000, "message": str(e)}}
 
 
-async def handle_initialize(msg_id: Any, params: Dict[str, Any]) -> Dict[str, Any]:
-    """Handle MCP initialize request."""
-    return {
-        "jsonrpc": "2.0",
-        "id": msg_id,
-        "result": {
-            "protocolVersion": "2024-11-05",
-            "capabilities": {"tools": {}},
-            "serverInfo": {"name": "mcproxy", "version": "2.0.0"},
-        },
+async def handle_initialize(
+    msg_id: Any, params: Dict[str, Any], namespace: Optional[str] = None
+) -> Dict[str, Any]:
+    """Handle MCP initialize request.
+
+    Args:
+        msg_id: JSON-RPC message ID
+        params: Initialize parameters
+        namespace: Optional namespace context from X-Namespace header
+
+    Returns:
+        MCP initialize response
+    """
+    result = {
+        "protocolVersion": "2024-11-05",
+        "capabilities": {"tools": {}},
+        "serverInfo": {"name": "mcproxy", "version": "2.0.0"},
     }
+    if namespace and capability_registry is not None:
+        result["namespace"] = namespace
+        ns_info = (
+            capability_registry.resolve_namespace(namespace)
+            if _validate_namespace(namespace)
+            else []
+        )
+        result["namespaceInfo"] = {
+            "name": namespace,
+            "servers": ns_info,
+        }
+
+    return {"jsonrpc": "2.0", "id": msg_id, "result": result}
 
 
-async def handle_tools_list(msg_id: Any) -> Dict[str, Any]:
-    """Handle tools/list request - return meta-tools only (v2.0)."""
+async def handle_tools_list(
+    msg_id: Any, namespace: Optional[str] = None
+) -> Dict[str, Any]:
+    """Handle tools/list request - return meta-tools only (v2.0).
+
+    Args:
+        msg_id: JSON-RPC message ID
+        namespace: Optional namespace context for filtering
+
+    Returns:
+        MCP response with meta-tools list
+    """
     return {"jsonrpc": "2.0", "id": msg_id, "result": {"tools": META_TOOLS}}
 
 
-async def handle_tools_call(msg_id: Any, params: Dict[str, Any]) -> Dict[str, Any]:
-    """Handle tools/call request - route to search or execute."""
+async def handle_tools_call(
+    msg_id: Any, params: Dict[str, Any], namespace: Optional[str] = None
+) -> Dict[str, Any]:
+    """Handle tools/call request - route to search or execute.
+
+    Args:
+        msg_id: JSON-RPC message ID
+        params: Tool call parameters
+        namespace: Optional namespace context from X-Namespace header
+
+    Returns:
+        MCP response with tool result or error
+    """
     tool_name = params.get("name", "")
     arguments = params.get("arguments", {})
 
-    logger.info(f"[META_TOOL_CALL] tool={tool_name}")
+    ns_context = f" namespace={namespace}" if namespace else ""
+    logger.info(f"[META_TOOL_CALL] tool={tool_name}{ns_context}")
 
     try:
         if tool_name == "search":
-            return await handle_search(msg_id, arguments)
+            return await handle_search(
+                msg_id, arguments, connection_namespace=namespace
+            )
         elif tool_name == "execute":
-            return await handle_execute(msg_id, arguments)
+            return await handle_execute(
+                msg_id, arguments, connection_namespace=namespace
+            )
         else:
             return {
                 "jsonrpc": "2.0",
@@ -201,12 +402,15 @@ async def handle_tools_call(msg_id: Any, params: Dict[str, Any]) -> Dict[str, An
         }
 
 
-async def handle_search(msg_id: Any, params: Dict) -> Dict[str, Any]:
+async def handle_search(
+    msg_id: Any, params: Dict, connection_namespace: Optional[str] = None
+) -> Dict[str, Any]:
     """Handle search meta-tool.
 
     Args:
         msg_id: JSON-RPC message ID
         params: Search parameters (query, namespace, max_depth)
+        connection_namespace: Namespace from connection context (X-Namespace header)
 
     Returns:
         MCP response with search results
@@ -219,10 +423,12 @@ async def handle_search(msg_id: Any, params: Dict) -> Dict[str, Any]:
             "error": {"code": -32602, "message": "Missing required parameter: query"},
         }
 
-    namespace = params.get("namespace")
+    param_namespace = params.get("namespace")
+    effective_namespace = param_namespace or connection_namespace
     max_depth = params.get("max_depth", 2)
 
-    logger.debug(f"[SEARCH] query={query} namespace={namespace} max_depth={max_depth}")
+    log_ns = f" namespace={effective_namespace}" if effective_namespace else ""
+    logger.debug(f"[SEARCH] query={query}{log_ns} max_depth={max_depth}")
 
     try:
         if capability_registry is None:
@@ -236,7 +442,7 @@ async def handle_search(msg_id: Any, params: Dict) -> Dict[str, Any]:
             }
 
         mq = ManifestQuery(capability_registry)
-        results = mq.search(query, namespace=namespace, max_depth=max_depth)
+        results = mq.search(query, namespace=effective_namespace, max_depth=max_depth)
 
         content = [{"type": "text", "text": json.dumps(results, indent=2)}]
         return {"jsonrpc": "2.0", "id": msg_id, "result": {"content": content}}
@@ -250,12 +456,15 @@ async def handle_search(msg_id: Any, params: Dict) -> Dict[str, Any]:
         }
 
 
-async def handle_execute(msg_id: Any, params: Dict) -> Dict[str, Any]:
+async def handle_execute(
+    msg_id: Any, params: Dict, connection_namespace: Optional[str] = None
+) -> Dict[str, Any]:
     """Handle execute meta-tool.
 
     Args:
         msg_id: JSON-RPC message ID
         params: Execution parameters (code, namespace, timeout_secs)
+        connection_namespace: Namespace from connection context (X-Namespace header)
 
     Returns:
         MCP response with execution result
@@ -268,10 +477,12 @@ async def handle_execute(msg_id: Any, params: Dict) -> Dict[str, Any]:
             "error": {"code": -32602, "message": "Missing required parameter: code"},
         }
 
-    namespace = params.get("namespace")
+    param_namespace = params.get("namespace")
+    effective_namespace = param_namespace or connection_namespace
     timeout_secs = params.get("timeout_secs")
 
-    logger.debug(f"[EXECUTE] namespace={namespace} timeout={timeout_secs}")
+    log_ns = f" namespace={effective_namespace}" if effective_namespace else ""
+    logger.debug(f"[EXECUTE]{log_ns} timeout={timeout_secs}")
 
     try:
         if sandbox_executor is None:
@@ -284,19 +495,20 @@ async def handle_execute(msg_id: Any, params: Dict) -> Dict[str, Any]:
                 },
             }
 
-        if not namespace:
+        if not effective_namespace:
             return {
                 "jsonrpc": "2.0",
                 "id": msg_id,
                 "error": {
                     "code": -32602,
                     "message": "Missing required parameter: namespace. "
-                    "v2.0 requires explicit namespace for execute().",
+                    "v2.0 requires explicit namespace for execute(). "
+                    "Provide in params or via X-Namespace header.",
                 },
             }
 
         result = sandbox_executor.execute(
-            code, namespace=namespace, timeout_secs=timeout_secs
+            code, namespace=effective_namespace, timeout_secs=timeout_secs
         )
 
         content = [{"type": "text", "text": json.dumps(result, indent=2)}]

@@ -1,8 +1,8 @@
 # MCProxy - Agent Guidelines
 
-> **Status**: Phase 2 Complete - Production Ready
+> **Status**: Phase 3 - Namespace-Aware Routing
 > 
-> MCProxy is a lightweight MCP gateway that aggregates multiple stdio MCP servers through a single SSE endpoint.
+> MCProxy is a lightweight MCP gateway that aggregates multiple stdio MCP servers through namespaced SSE endpoints.
 
 ## Build & Test Commands
 
@@ -16,21 +16,30 @@ pip install -r requirements.txt
 python main.py --log
 
 # Run with custom config
-python main.py --config mcp-servers.json --port 12009
+python main.py --config mcproxy.json --port 12009
 
 # Run as native MCP server (stdio mode)
-python main.py --stdio --config mcp-servers.json
+python main.py --stdio --config mcproxy.json
 
-# Test SSE endpoint
+# Test SSE endpoint (default namespace)
 curl -N http://localhost:12009/sse
+
+# Test namespaced SSE endpoint
+curl -N http://localhost:12009/sse/dev
 
 # Test tools list
 curl -X POST http://localhost:12009/sse \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 
+# Test with namespace header
+curl -X POST http://localhost:12009/sse \
+  -H "Content-Type: application/json" \
+  -H "X-Namespace: dev" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+
 # Validate JSON config
-python -m json.tool mcp-servers.json
+python -m json.tool mcproxy.json
 
 # Build container
 docker build -t localhost/mcproxy:latest .
@@ -88,10 +97,11 @@ logger = logging.getLogger(__name__)
 ```
 
 ### Configuration
-- All values from `mcp-servers.json` - no hardcoding
+- All values from `mcproxy.json` - no hardcoding
 - Environment variable interpolation: `${VAR_NAME}`
 - Validate JSON schema on load
 - Hot-reload without dropping connections
+- Namespace-based access control for server isolation
 
 ### Tool Naming Convention
 ```python
@@ -111,9 +121,11 @@ tool_name = f"{server_name}__{original_tool_name}"
 ├── config_watcher.py    # Config loading & validation
 ├── config_reloader.py   # Hot-reload watcher
 ├── tool_aggregator.py   # Prefix & aggregate tools
+├── api_manifest.py      # Capability registry, namespaces, groups
+├── api_sandbox.py       # Sandbox executor with namespace access control
 ├── logging_config.py    # Syslog + stdout setup
 ├── requirements.txt     # Python dependencies
-├── mcp-servers.json     # Server configuration
+├── mcproxy.json         # Server, namespace, and group configuration
 ├── Dockerfile           # Container image
 ├── mcproxy.container    # Systemd quadlet file
 ├── .env                 # Environment variables
@@ -152,7 +164,7 @@ pytest tests/
 ## New Features (Phase 2)
 
 ### Hot-Reload Configuration
-- **Automatic detection** of mcp-servers.json changes
+- **Automatic detection** of mcproxy.json changes
 - **Zero-downtime reload** - SSE connections stay alive
 - **Smart diffing** - Only changed servers are restarted
 - **Validation** - Invalid configs are rejected with error logging
@@ -178,6 +190,58 @@ pytest tests/
 --no-reload        # Disable hot-reload
 --reload-interval  # Config check interval in seconds (default: 1.0)
 ```
+
+## Namespace-Aware Routing (Phase 3)
+
+### Configuration Schema
+
+```json
+{
+  "servers": [...],
+  "namespaces": {
+    "dev": {
+      "servers": ["sequential_thinking", "wikipedia", "llms_txt"],
+      "isolated": false,
+      "extends": []
+    },
+    "home": {
+      "servers": ["home_assistant"],
+      "isolated": true
+    }
+  },
+  "groups": {
+    "dev_full": {
+      "namespaces": ["dev", "docs"]
+    },
+    "everything": {
+      "namespaces": ["dev", "!home"]
+    }
+  }
+}
+```
+
+### Namespace Properties
+- **servers**: List of server names accessible in this namespace
+- **isolated**: If `true`, namespace requires explicit endpoint (not included in default)
+- **extends**: Optional list of parent namespaces to inherit servers from
+
+### Group Properties
+- **namespaces**: List of namespace names to merge
+- Use `!prefix` (e.g., `!home`) to force-include isolated namespaces (with warning)
+
+### Endpoint Behavior
+
+| Endpoint | Servers Visible |
+|----------|-----------------|
+| `/sse` | Unnamespaced + all non-isolated namespaces |
+| `/sse/dev` | Only servers in `dev` namespace |
+| `/sse/home` | Only servers in `home` namespace (isolated) |
+| `/sse/dev_full` | Merged servers from group's namespaces |
+| `/sse/unknown` | 404 error |
+
+### Header Support
+- `X-Namespace` header can override/specify namespace on any request
+- Header takes precedence over URL path parameter
 
 ## Dependencies
 

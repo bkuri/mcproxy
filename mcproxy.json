@@ -1,0 +1,42 @@
+{
+  "servers": [
+    {
+      "name": "sequential_thinking",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+      "env": {
+        "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+      },
+      "timeout": 60,
+      "enabled": true
+    },
+    {
+      "name": "wikipedia",
+      "command": "npx",
+      "args": ["-y", "wikipedia-mcp"],
+      "env": {
+        "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+      },
+      "timeout": 60,
+      "enabled": true
+    },
+    {
+      "name": "llms_txt",
+      "command": "uvx",
+      "args": ["mcpdoc", "--urls", "Python:https://docs.python.org/3/", "--transport", "stdio"],
+      "env": {
+        "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+      },
+      "timeout": 60,
+      "enabled": true
+    }
+  ],
+  "namespaces": {
+    "dev": {
+      "servers": ["sequential_thinking", "wikipedia", "llms_txt"],
+      "isolated": false
+    }
+  },
+  "groups": {
+  }
+}

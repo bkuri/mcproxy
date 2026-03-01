@@ -1,0 +1,59 @@
+{
+  "manifest": {
+    "version": "2.0",
+    "generated_at": "2026-03-01T03:53:15.532609+00:00",
+    "servers": {
+      "sequential_thinking": {
+        "tool_count": 1,
+        "categories": [],
+        "status": "active"
+      },
+      "wikipedia": {
+        "tool_count": 1,
+        "categories": [],
+        "status": "active"
+      },
+      "llms_txt": {
+        "tool_count": 1,
+        "categories": [],
+        "status": "active"
+      }
+    },
+    "tools_by_server": {
+      "sequential_thinking": [
+        {
+          "name": "think",
+          "description": "Think step by step",
+          "inputSchema": {}
+        }
+      ],
+      "wikipedia": [
+        {
+          "name": "search",
+          "description": "Search Wikipedia",
+          "inputSchema": {}
+        }
+      ],
+      "llms_txt": [
+        {
+          "name": "fetch_docs",
+          "description": "Fetch documentation",
+          "inputSchema": {}
+        }
+      ]
+    },
+    "tool_count": 3,
+    "server_count": 3
+  },
+  "namespaces": {
+    "dev": {
+      "servers": [
+        "sequential_thinking",
+        "wikipedia",
+        "llms_txt"
+      ],
+      "isolated": false
+    }
+  },
+  "cached_at": "2026-03-01T03:53:15.532653+00:00"
+}

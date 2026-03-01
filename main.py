@@ -65,8 +65,8 @@ Examples:
 
     parser.add_argument(
         "--config",
-        default="mcp-servers.json",
-        help="Path to configuration file (default: mcp-servers.json)",
+        default="mcproxy.json",
+        help="Path to configuration file (default: mcproxy.json)",
     )
 
     parser.add_argument(
