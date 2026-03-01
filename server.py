@@ -79,17 +79,18 @@ META_TOOLS = [
 
 
 def _validate_namespace(namespace: str) -> bool:
-    """Validate that a namespace exists in the registry.
+    """Validate that a namespace or group exists in the registry.
 
     Args:
-        namespace: Namespace name to validate
+        namespace: Namespace or group name to validate
 
     Returns:
-        True if namespace exists, False otherwise
+        True if namespace/group exists, False otherwise
     """
     if capability_registry is None:
         return False
-    return namespace in capability_registry._namespaces
+    servers, error = capability_registry.resolve_endpoint_to_servers(namespace)
+    return error is None
 
 
 def _get_namespace_from_request(request: Request) -> Optional[str]:
@@ -550,6 +551,9 @@ def init_v2_components(
 
     if config and "namespaces" in config:
         capability_registry._namespaces = config["namespaces"]
+
+    if config and "groups" in config:
+        capability_registry._groups = config["groups"]
 
     if servers_tools:
         logger.info(f"[V2_INIT] Building manifest from {len(servers_tools)} servers")
