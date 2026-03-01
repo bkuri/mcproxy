@@ -263,13 +263,29 @@ async def handle_sse_message(request: Request) -> Dict[str, Any]:
     return await handle_message(request)
 
 
+@app.post("/sse/{namespace}")
+async def handle_sse_message_namespaced(
+    namespace: str, request: Request
+) -> Dict[str, Any]:
+    """Handle MCP POST messages at /sse/{namespace} for namespaced access."""
+    if not _validate_namespace(namespace):
+        raise HTTPException(status_code=404, detail=f"Namespace not found: {namespace}")
+    return await handle_message(request, path_namespace=namespace)
+
+
 @app.post("/message")
-async def handle_message(request: Request) -> Dict[str, Any]:
+async def handle_message(
+    request: Request, path_namespace: Optional[str] = None
+) -> Dict[str, Any]:
     """Handle MCP messages from clients.
 
     Processes initialize, tools/list, and tools/call requests.
     v2.0 only supports search and execute meta-tools.
     Supports X-Namespace header for namespace context.
+
+    Args:
+        request: FastAPI request object
+        path_namespace: Namespace from URL path (takes precedence over header)
     """
     try:
         body = await request.json()
@@ -277,7 +293,8 @@ async def handle_message(request: Request) -> Dict[str, Any]:
         msg_id = body.get("id")
         params = body.get("params", {})
 
-        header_ns = _get_namespace_from_request(request)
+        # Path namespace takes precedence over header
+        header_ns = path_namespace or _get_namespace_from_request(request)
         if header_ns and not _validate_namespace(header_ns):
             logger.warning(f"[MESSAGE] Invalid X-Namespace header: {header_ns}")
             return {
@@ -329,14 +346,10 @@ async def handle_initialize(
     }
     if namespace and capability_registry is not None:
         result["namespace"] = namespace
-        ns_info = (
-            capability_registry.resolve_namespace(namespace)
-            if _validate_namespace(namespace)
-            else []
-        )
+        servers, _ = capability_registry.resolve_endpoint_to_servers(namespace)
         result["namespaceInfo"] = {
             "name": namespace,
-            "servers": ns_info,
+            "servers": servers,
         }
 
     return {"jsonrpc": "2.0", "id": msg_id, "result": result}
