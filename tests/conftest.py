@@ -3,8 +3,8 @@
 import pytest
 from typing import Any, Dict, List
 
-from api_manifest import CapabilityRegistry
-from api_sandbox import SandboxManifest, NamespaceAccessControl
+from manifest import CapabilityRegistry
+from sandbox import SandboxManifest, NamespaceAccessControl
 
 
 @pytest.fixture

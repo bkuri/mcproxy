@@ -8,7 +8,7 @@ import asyncio
 import json
 from typing import Any, Callable, Dict, List, Optional
 
-from api_sandbox import suggest_tool_fix
+from sandbox import suggest_tool_fix
 from logging_config import get_logger
 
 logger = get_logger(__name__)

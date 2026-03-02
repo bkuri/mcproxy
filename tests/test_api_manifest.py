@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List
 from unittest.mock import patch, MagicMock
 
-from api_manifest import (
+from manifest import (
     CapabilityRegistry,
     ManifestQuery,
     EventHookManager,
@@ -343,24 +343,21 @@ class TestManifestQuery:
         assert len(results["matches"]["servers"]) == 0
 
     def test_fuzzy_match_exact(self):
-        registry = CapabilityRegistry()
-        query = ManifestQuery(registry)
+        from utils.fuzzy_match import fuzzy_score
 
-        score = query._fuzzy_match("playwright", "playwright", 0.5)
+        score = fuzzy_score("playwright", "playwright", 0.5)
         assert score == 1.0
 
     def test_fuzzy_match_substring(self):
-        registry = CapabilityRegistry()
-        query = ManifestQuery(registry)
+        from utils.fuzzy_match import fuzzy_score
 
-        score = query._fuzzy_match("play", "playwright", 0.5)
+        score = fuzzy_score("play", "playwright", 0.5)
         assert score == 1.0
 
     def test_fuzzy_match_word_similarity(self):
-        registry = CapabilityRegistry()
-        query = ManifestQuery(registry)
+        from utils.fuzzy_match import fuzzy_score
 
-        score = query._fuzzy_match("play wright", "playwright browser", 0.4)
+        score = fuzzy_score("play wright", "playwright browser", 0.4)
         assert score >= 0.4
 
 
@@ -536,7 +533,7 @@ class TestCapabilityRegistryCache:
     def test_invalidate_cache(
         self, sample_servers_tools: Dict[str, List[Dict[str, Any]]], tmp_path
     ):
-        with patch("api_manifest.CACHE_DIR", tmp_path):
+        with patch("manifest.registry.CACHE_DIR", tmp_path):
             registry = CapabilityRegistry()
             registry.build(sample_servers_tools)
 
@@ -545,15 +542,15 @@ class TestCapabilityRegistryCache:
             assert registry._manifest == {}
 
     def test_load_cache_not_exists(self, tmp_path):
-        with patch("api_manifest.CACHE_DIR", tmp_path):
-            with patch("api_manifest.CACHE_FILE", tmp_path / "manifest.json"):
+        with patch("manifest.registry.CACHE_DIR", tmp_path):
+            with patch("manifest.registry.CACHE_FILE", tmp_path / "manifest.json"):
                 registry = CapabilityRegistry()
                 result = registry.load_cache()
 
                 assert result is None
 
     def test_load_cache_expired(self, tmp_path):
-        with patch("api_manifest.CACHE_DIR", tmp_path):
+        with patch("manifest.registry.CACHE_DIR", tmp_path):
             cache_file = tmp_path / "manifest.json"
             old_time = datetime.utcnow() - timedelta(hours=2)
             cache_data = {
@@ -567,16 +564,16 @@ class TestCapabilityRegistryCache:
             with open(cache_file, "w") as f:
                 json.dump(cache_data, f)
 
-            with patch("api_manifest.CACHE_FILE", cache_file):
+            with patch("manifest.registry.CACHE_FILE", cache_file):
                 registry = CapabilityRegistry()
                 result = registry.load_cache()
 
                 assert result is None
 
     def test_cache_disabled(self, tmp_path):
-        with patch("api_manifest.CACHE_DIR", tmp_path):
+        with patch("manifest.registry.CACHE_DIR", tmp_path):
             cache_file = tmp_path / "manifest.json"
-            with patch("api_manifest.CACHE_FILE", cache_file):
+            with patch("manifest.registry.CACHE_FILE", cache_file):
                 registry = CapabilityRegistry()
                 registry._cache_enabled = False
                 registry.build({"server": [{"name": "tool"}]})

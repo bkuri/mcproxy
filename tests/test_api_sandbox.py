@@ -4,7 +4,7 @@ import pytest
 from typing import Any, Dict, List
 from unittest.mock import patch, MagicMock
 
-from api_sandbox import (
+from sandbox import (
     SandboxExecutor,
     SandboxManifest,
     NamespaceAccessControl,

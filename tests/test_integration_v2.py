@@ -6,8 +6,8 @@ from pathlib import Path
 from typing import Any, Dict, List
 from unittest.mock import patch, MagicMock, AsyncMock
 
-from api_manifest import CapabilityRegistry, ManifestQuery, EventHookManager
-from api_sandbox import (
+from manifest import CapabilityRegistry, ManifestQuery, EventHookManager
+from sandbox import (
     SandboxExecutor,
     SandboxManifest,
     NamespaceAccessControl,
