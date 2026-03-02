@@ -258,8 +258,8 @@ MCProxy exposes two meta-tools (`search` + `execute`) that collapse N servers ×
 ### MCP Tool Names
 
 When connected via MCP client (e.g., opencode), tools appear as:
-- `mcproxy_search` - Discover tools by query
-- `mcproxy_execute` - Run code with tool access
+- `mcproxy_search` - Discover tools by query (namespace optional, warns if omitted)
+- `mcproxy_execute` - Run code with tool access (namespace required)
 
 ### Usage in Execute Sandbox
 
