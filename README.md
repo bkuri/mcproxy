@@ -21,9 +21,77 @@ A lightweight MCP gateway that aggregates multiple stdio MCP servers through a s
 
 - ✅ **Dual Mode**: HTTP/SSE endpoint OR native MCP server over stdio
 - ✅ **Auto-Restart**: Crashed servers auto-recover (max 3 attempts)
-- ✅ **Hot-Reload**: Zero-downtime config changes
+- ✅ **Config Hot-Reload**: Add/remove/modify servers without dropping connections
 - ✅ **Environment Interpolation**: `${VAR_NAME}` in JSON configs
 - ✅ **Docker/Podman Ready**: Containerized deployment
+
+**Note on Hot-Reload**: Only applies to config changes (add/remove servers). Code changes (Python files, TypeScript generators, tool descriptions) require server restart. This is standard for Python applications.
+
+---
+
+## Hot Reload Behavior
+
+### What Gets Hot-Reloaded (No Restart)
+
+**Config changes only** (`mcproxy.json`):
+- ✅ Add new servers (starts automatically)
+- ✅ Remove servers (stops automatically)
+- ✅ Modify server config (command, args, env, timeout)
+- ✅ Zero downtime (SSE connections preserved)
+
+```bash
+# Edit config
+vim config/mcproxy.json
+
+# Changes detected within 1 second
+# Servers start/stop/restart as needed
+# No manual restart required
+```
+
+### What Requires Restart
+
+**All code changes**:
+- ❌ Python files (`*.py`)
+- ❌ TypeScript generator changes
+- ❌ Tool descriptions
+- ❌ Error messages
+- ❌ Sandbox behavior
+
+```bash
+# After code changes
+sudo systemctl restart mcproxy
+
+# Client will auto-reconnect and re-initialize
+# New instructions/descriptions loaded
+```
+
+### Why This Limitation?
+
+**Python module loading**: Modules load once at startup. Reloading modules at runtime (`importlib.reload()`) risks:
+- State corruption
+- Memory leaks
+- Unpredictable behavior
+
+**Industry standard**: Most Python applications require restart for code changes:
+- Django: `runserver` has auto-reload for dev, but not production
+- Flask: Same approach
+- FastAPI: Requires restart
+- Forgemax (Rust): Requires recompilation for code changes
+
+### Development Workflow
+
+```bash
+# 1. Make code changes
+vim sandbox/proxy.py
+
+# 2. Restart server (required)
+sudo systemctl restart mcproxy
+
+# 3. Client auto-reconnects
+# 4. Changes reflected
+```
+
+For **operational changes** (add/remove servers in production), hot-reload works seamlessly. For **development changes** (code updates), restart is required.
 
 ---
 

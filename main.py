@@ -137,6 +137,14 @@ Examples:
     )
     logger.info("v2.0 components initialized (search/execute meta-tools ready)")
 
+    # Link capability registry to hot_reload_manager for namespace/group updates
+    from server import get_capability_registry
+
+    cap_registry = get_capability_registry()
+    if cap_registry and hasattr(hot_reload_manager, "set_capability_registry"):
+        hot_reload_manager.set_capability_registry(cap_registry)
+        logger.info("Linked capability registry for hot-reload updates")
+
     # Setup config reloader (hot-reload) - skip in stdio mode
     if not args.no_reload and not args.stdio:
         config_reloader = ConfigReloader(

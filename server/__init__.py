@@ -127,4 +127,5 @@ __all__ = [
     "refresh_manifest",
     "on_config_change",
     "on_server_health",
+    "get_capability_registry",
 ]

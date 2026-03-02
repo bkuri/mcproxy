@@ -134,6 +134,7 @@ class HotReloadServerManager:
         self.manager = ServerManager(config, on_server_ready=on_server_ready)
         self.current_config = config
         self._reloading = False
+        self._capability_registry = None  # Will be set by set_capability_registry
 
     async def spawn_servers(self) -> None:
         """Delegate to underlying manager."""
@@ -152,6 +153,15 @@ class HotReloadServerManager:
     ) -> Any:
         """Delegate to underlying manager."""
         return await self.manager.call_tool(server_name, tool_name, arguments)
+
+    def set_capability_registry(self, registry: Any) -> None:
+        """Set the capability registry for hot-reload updates.
+
+        Args:
+            registry: CapabilityRegistry instance
+        """
+        self._capability_registry = registry
+        logger.info("Capability registry linked for hot-reload")
 
     async def reload_config(self, new_config: Dict[str, Any]) -> None:
         """Hot-reload configuration without dropping connections.
@@ -231,6 +241,18 @@ class HotReloadServerManager:
             # Update config reference
             self.current_config = new_config
             self.manager.config = new_config
+
+            # Hot-reload namespaces and groups in capability registry
+            if self._capability_registry:
+                logger.info("Hot-reloading namespaces and groups...")
+                # Update the config reference in the registry
+                self._capability_registry._config = new_config
+                # Reload namespaces and groups from the new config
+                self._capability_registry._load_namespaces_from_config()
+                logger.info(
+                    f"Reloaded {len(self._capability_registry._namespaces)} namespaces, "
+                    f"{len(self._capability_registry._groups)} groups"
+                )
 
             logger.info("Hot-reload complete")
 
