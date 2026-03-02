@@ -580,6 +580,7 @@ def init_v2_components(
         sandbox_manifest = SandboxManifest(
             servers=capability_registry._manifest.get("servers", {}),
             namespaces=capability_registry._namespaces,
+            groups=capability_registry._groups,
         )
         sandbox_executor = SandboxExecutor(
             manifest=sandbox_manifest,
@@ -612,6 +613,7 @@ def refresh_manifest(servers_tools: Dict[str, List]) -> None:
         sandbox_executor._manifest = SandboxManifest(
             servers=capability_registry._manifest.get("servers", {}),
             namespaces=capability_registry._namespaces,
+            groups=capability_registry._groups,
         )
 
     _log_manifest_stats()

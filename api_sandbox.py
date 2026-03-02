@@ -57,12 +57,16 @@ class SandboxManifest:
 
     servers: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     namespaces: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    groups: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
     def get_server(self, name: str) -> Optional[Dict[str, Any]]:
         return self.servers.get(name)
 
     def get_namespace(self, name: str) -> Optional[Dict[str, Any]]:
         return self.namespaces.get(name)
+
+    def get_group(self, name: str) -> Optional[Dict[str, Any]]:
+        return self.groups.get(name)
 
     def get_tools_for_server(self, server_name: str) -> List[str]:
         server = self.get_server(server_name)
@@ -544,6 +548,7 @@ class SandboxExecutor:
                     }
                     for k, v in self._manifest.namespaces.items()
                 },
+                "groups": self._manifest.groups,
             }
         )
 
@@ -575,6 +580,10 @@ class _Manifest:
     @property
     def namespaces(self):
         return self._data.get("namespaces", {{}})
+    
+    @property
+    def groups(self):
+        return self._data.get("groups", {{}})
 
 _manifest_data = {manifest_json}
 _manifest = _Manifest(_manifest_data)
@@ -583,12 +592,16 @@ class _CapabilityRegistry:
     def __init__(self, manifest):
         self.servers = manifest.servers
         self.namespaces = manifest.namespaces
+        self.groups = manifest.groups
     
     def get_server(self, name):
         return self.servers.get(name)
     
     def get_namespace(self, name):
         return self.namespaces.get(name)
+    
+    def get_group(self, name):
+        return self.groups.get(name)
     
     def get_tools_for_server(self, server_name):
         server = self.get_server(server_name)
@@ -603,20 +616,16 @@ class _NamespaceAccessControl:
         self.manifest = manifest
     
     def can_access(self, namespace, target_server):
-        ns_config = self.manifest.get_namespace(namespace)
-        if not ns_config:
-            return False, f"Namespace '{{namespace}}' not found"
-        
         allowed = self._resolve_allowed_servers(namespace)
         if target_server in allowed:
             return True, ""
         return False, f"Access denied to '{{target_server}}'"
     
-    def _resolve_allowed_servers(self, namespace):
+    def _resolve_allowed_servers(self, namespace_or_group):
         resolved = set()
         visited = set()
         
-        def _resolve(ns):
+        def _resolve_namespace(ns):
             if ns in visited:
                 return
             visited.add(ns)
@@ -625,9 +634,20 @@ class _NamespaceAccessControl:
                 return
             resolved.update(ns_config.get("servers", []))
             for parent in ns_config.get("extends", []):
-                _resolve(parent)
+                _resolve_namespace(parent)
         
-        _resolve(namespace)
+        # Check if it's a group first
+        group_config = self.manifest.get_group(namespace_or_group)
+        if group_config:
+            # It's a group - resolve all namespaces in the group
+            for ns_ref in group_config.get("namespaces", []):
+                # Strip ! prefix if present (force-include isolated)
+                actual_ns = ns_ref[1:] if ns_ref.startswith("!") else ns_ref
+                _resolve_namespace(actual_ns)
+        else:
+            # It's a namespace
+            _resolve_namespace(namespace_or_group)
+        
         return resolved
 
 _access_control = _NamespaceAccessControl(_registry)
