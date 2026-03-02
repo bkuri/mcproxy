@@ -268,12 +268,9 @@ When connected via MCP client (e.g., opencode), tools appear as:
 api.manifest()                          # All servers/tools
 api.manifest().servers                  # Server names only
 
-# Call tools via fluent proxy
+# Call tools
 api.server("github").repos.list(owner="octocat")
 api.server("wikipedia").search(query="python")
-
-# Or direct
-api.call_tool("github", "repos.list", {"owner": "octocat"})
 
 # Parallel execution
 results = await forge.parallel([

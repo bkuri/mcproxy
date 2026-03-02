@@ -430,6 +430,7 @@ _error = None
 
 try:
     import asyncio
+    import re
     local_vars = {{"__builtins__": __builtins__, "api": api, "stash": stash, "asyncio": asyncio, "forge": forge}}
     exec({repr(user_code)}, local_vars, local_vars)
     if "run" in local_vars and callable(local_vars["run"]):
@@ -438,6 +439,24 @@ try:
             _result = asyncio.run(run_func())
         else:
             _result = run_func()
+except NameError as e:
+    import traceback
+    _error = traceback.format_exc()
+    match = re.search(r"name '([\w]+__[\w]+)' is not defined", str(_error))
+    if match:
+        tool_name = match.group(1)
+        parts = tool_name.split("__", 1)
+        if len(parts) == 2:
+            server, tool = parts
+            _error = f"""NameError: Tool function '{{tool_name}}' not found.
+
+In the v2 API, use the 'api' object:
+
+    result = api.server("{{server}}").{{tool}}(...your args...)
+
+To see available tools: manifest = api.manifest()
+
+Original error: {{e}}"""
 except Exception as e:
     import traceback
     _error = traceback.format_exc()
