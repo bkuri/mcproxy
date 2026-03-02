@@ -442,21 +442,37 @@ try:
 except NameError as e:
     import traceback
     _error = traceback.format_exc()
-    match = re.search(r"name '([\w]+__[\w]+)' is not defined", str(_error))
+    
+    # Check for common mistakes
+    error_str = str(_error)
+    
+    # Pattern 1: server__tool() direct call
+    match = re.search(r"name '([\w]+__[\w]+)' is not defined", error_str)
     if match:
         tool_name = match.group(1)
         parts = tool_name.split("__", 1)
         if len(parts) == 2:
             server, tool = parts
-            _error = f"""NameError: Tool function '{{tool_name}}' not found.
+            _error = f"""NameError: '{{tool_name}}' is not a function.
 
-In the v2 API, use the 'api' object:
+Use the 'api' object to call tools:
 
-    result = api.server("{{server}}").{{tool}}(...your args...)
+    result = api.server("{{server}}").{{tool}}(...)
 
-To see available tools: manifest = api.manifest()
+Available: api.manifest()"""
+    elif "call_tool" in error_str and "is not defined" in error_str:
+        # Pattern 2: call_tool without api prefix
+        _error = """NameError: 'call_tool' is not defined.
 
-Original error: {{e}}"""
+Use 'api.call_tool' instead:
+
+    result = api.call_tool("server", "tool", {{"arg": "value"}})"""
+    elif re.search(r"name '(server|forge|manifest)' is not defined", error_str):
+        # Pattern 3: Using 'server' or 'forge' directly
+        _error = """NameError: Use the 'api' object to access tools.
+
+    api.server("name").tool(args)
+    api.manifest()"""
 except Exception as e:
     import traceback
     _error = traceback.format_exc()
