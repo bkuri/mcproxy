@@ -8,6 +8,7 @@ from fastapi import Request
 from fastapi.responses import StreamingResponse
 
 from manifest import CapabilityRegistry, ManifestQuery
+from manifest.typescript_gen import generate_compact_instructions
 from sandbox import SandboxExecutor, SandboxManifest
 from logging_config import get_logger
 from session_stash import SessionManager, SessionStash
@@ -95,23 +96,13 @@ async def handle_initialize(
         "protocolVersion": "2024-11-05",
         "capabilities": {"tools": {}},
         "serverInfo": {"name": "mcproxy", "version": "2.0.0"},
-        "instructions": """MCProxy v2 Code Mode API
-
-Use api.server("name").tool(args) to call tools. No search needed for common tools:
-
-Examples:
-  api.server("perplexity_sonar").perplexity_search_web(query="news", search_recency_filter="day")
-  api.server("wikipedia").search(query="Python")
-  api.server("playwright").playwright_navigate(url="https://example.com")
-  api.server("think_tool").think(thought="analyzing...")
-  api.server("sequential_thinking").sequentialthinking(thought="...", thoughtNumber=1, totalThoughts=3, nextThoughtNeeded=true)
-
-Common servers: perplexity_sonar, wikipedia, playwright, think_tool, sequential_thinking, fear_greed_index, coincap, asset_price, youtube, llms_txt, pure_md, tmux
-
-For full list: api.manifest()
-For parallel execution: await forge.parallel([lambda: api.server("x").tool(), ...])
-For caching: stash.put("key", data, ttl=3600) / stash.get("key")""",
     }
+
+    # Generate TypeScript-style instructions from manifest
+    if capability_registry and capability_registry._manifest:
+        instructions = generate_compact_instructions(capability_registry._manifest)
+        result["instructions"] = instructions
+
     if namespace and capability_registry is not None:
         result["namespace"] = namespace
         servers, _ = capability_registry.resolve_endpoint_to_servers(namespace)
