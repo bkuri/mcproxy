@@ -1,0 +1,262 @@
+================================================================================
+MCPROXY SESSION STASH - ANALYSIS SUMMARY
+================================================================================
+
+CURRENT STATE:
+==============
+
+1. SESSION TRACKING
+   - Defined but unused: _connection_namespaces dict in server.py:26
+   - No persistent session ID mechanism
+   - Request scoped: each POST is independent
+   - Only namespace passed per-request (header or path)
+
+2. EXECUTION MODEL
+   - Each execute() spawns NEW uv subprocess
+   - No inter-subprocess communication
+   - No persistent state between calls
+   - Manifest + access control injected at runtime
+
+3. CURRENT STATE IN SANDBOX
+   - _ToolExecutor tracks pending calls (not persistent)
+   - api.server() / api.call_tool() / api.manifest() available
+   - Everything local to subprocess, discarded after execution
+
+PROPOSED DESIGN:
+================
+
+SESSION IDENTIFICATION:
+  Header: X-Session-ID (client-provided)
+  Fallback: Auto-generated from IP + timestamp
+  Purpose: Correlate multiple execute() calls to same session
+
+STORAGE ARCHITECTURE:
+  SessionManager (global, in server.py)
+    ├─ SessionStash per session_id
+    │   ├─ _data: Dict[key] = value
+    │   ├─ _ttl_map: Dict[key] = expiration_time
+    │   └─ Methods: get(), put(), has(), delete(), clear(), keys()
+    └─ cleanup_expired(): Remove stale sessions
+
+INTEGRATION POINTS:
+  1. server.py
+     - Add SessionManager global (similar to sandbox_executor)
+     - Add _get_session_id(request) helper
+     - Modify handle_execute() to:
+       - Get session_id from params/header
+       - Get/create stash from SessionManager
+       - Pass stash to sandbox_executor.execute()
+       - Return stash metadata in response
+
+  2. api_sandbox.py
+     - Modify execute() signature: add stash parameter
+     - Modify _wrap_code() to inject stash into wrapped code
+     - Create _Stash class in wrapped code with get/put/has/clear methods
+     - Pass stash to _APIProxy constructor
+
+  3. main.py
+     - Initialize SessionManager
+     - Start background cleanup task
+     - Shutdown cleanup on exit
+
+USAGE IN USER CODE:
+  # Cache search results
+  if not api.has_stash("search_results"):
+      results = api.server("search").find_tools(query="...")
+      api.put_stash("search_results", results, ttl=3600)
+  else:
+      results = api.get_stash("search_results")
+
+  # Use cached results
+  tool = results[0]
+  api.call_tool(tool["server"], tool["name"], {...})
+
+RESPONSE FORMAT:
+  {
+    "jsonrpc": "2.0",
+    "id": msg_id,
+    "result": {
+      "content": [...],
+      "session_stash": {
+        "keys": ["search_results", "db_schema"],
+        "updated_at": 1234567890.5
+      }
+    }
+  }
+
+KEY DECISIONS:
+==============
+
+1. WHY HEADER-BASED SESSION ID?
+   + Clients can explicitly identify sessions
+   + Survives SSE streaming model (GET + POST)
+   + Backward compatible (optional)
+   + Correlates multiple execute() calls
+   - Requires client cooperation (not automatic)
+
+2. WHY IN-MEMORY ONLY?
+   + Simple, no external dependencies (no Redis)
+   + Fast, no I/O overhead
+   + Suitable for single-process gateway
+   - Not suitable for distributed deployments
+
+3. WHY PER-KEY TTL?
+   + Fine-grained control over cache expiration
+   + Search results (1h) vs schema (4h) can have different TTLs
+   + Matches Forgemax API pattern
+
+4. WHY SUBPROCESS DOESN'T PERSIST DIRECTLY?
+   + Subprocess is sandboxed, isolated execution
+   + Server.py coordinates stash state
+   + Stash is server-side, not embedded in subprocess
+   + Cleaner separation of concerns
+
+CHALLENGES & MITIGATION:
+========================
+
+Challenge: Session ID reliability
+  Risk: Clients don't set X-Session-ID, get auto-generated
+  Mitigation: Warn in logs, clients should use UUIDs
+
+Challenge: Cross-namespace access
+  Risk: One namespace shouldn't read another's stash
+  Solution: Can enforce namespaced keys (future enhancement)
+
+Challenge: Memory exhaustion
+  Risk: Sessions accumulate unbounded data
+  Mitigation: Per-key TTL, per-session TTL, cleanup task
+
+Challenge: Concurrent access
+  Risk: Multiple requests in same session race on stash
+  Mitigation: asyncio.Lock in SessionManager
+
+Challenge: Subprocess updates lost
+  Risk: Stash put/delete in subprocess not reflected server-side
+  Solution: Subprocess returns stash delta, server applies updates
+
+FILES TO MODIFY:
+================
+
+1. server.py
+   - Add SessionStash and SessionManager classes
+   - Add session_manager global
+   - Add _get_session_id() function
+   - Modify handle_execute() to use stash
+   - Add cleanup task initialization
+
+2. api_sandbox.py
+   - Add stash param to execute() signature
+   - Modify _wrap_code() to inject stash
+   - Create _Stash class in wrapped code
+   - Pass stash to _APIProxy
+
+3. main.py
+   - Initialize SessionManager in init_v2_components()
+   - Start cleanup task
+   - Shutdown cleanup on exit
+
+4. tests/ (new tests)
+   - test_session_stash.py: SessionStash operations
+   - test_session_manager.py: SessionManager concurrency
+   - test_sandbox_stash_injection.py: Wrapped code integration
+   - test_stash_ttl.py: TTL expiration
+   - test_stash_isolation.py: Namespace isolation
+
+5. mcproxy.json (optional)
+   - Add "session" configuration section
+
+IMPLEMENTATION PHASES:
+======================
+
+PHASE 1 (MVP):
+  - SessionStash and SessionManager in server.py
+  - Inject stash (read-only) into wrapped code via api.get_stash()
+  - Basic tests
+  - ~100 lines of code
+
+PHASE 2 (Full):
+  - Write support: api.put_stash(), api.delete_stash(), api.clear_stash()
+  - Subprocess returns stash updates
+  - TTL support
+  - Configuration in mcproxy.json
+  - Comprehensive tests
+  - ~300 lines of code
+
+PHASE 3 (Advanced):
+  - Namespace isolation enforcement
+  - Max size limits per session
+  - Metrics and logging
+  - Admin endpoints (/admin/sessions)
+  - Persistence (optional)
+
+ADVANTAGES:
+===========
+
++ Minimal changes: Mostly additive
++ No external dependencies
++ Backward compatible (optional header)
++ Namespace-aware (respects existing access control)
++ TTL-based cleanup (prevents memory leaks)
++ Client-controlled (explicit session IDs)
++ Observable (stash keys in response)
++ Thread-safe (asyncio.Lock)
+
+DISADVANTAGES:
+==============
+
+- In-memory only (not suitable for multi-process)
+- Requires client support (X-Session-ID header)
+- Subprocess can't directly mutate stash (needs server coordination)
+- No persistence across restarts
+
+TESTING STRATEGY:
+=================
+
+Unit Tests:
+  - SessionStash.get/put/delete/clear/has
+  - SessionStash.is_expired()
+  - SessionManager.get_stash() (creation + retrieval)
+  - SessionManager.cleanup_expired()
+  - TTL expiration logic
+
+Integration Tests:
+  - Stash injection into wrapped code
+  - Stash access via api.get_stash()
+  - Multiple execute() calls with same session_id
+  - Stash returns in response metadata
+
+Concurrency Tests:
+  - Multiple requests to same session_id
+  - Cleanup task running while requests in flight
+
+Edge Cases:
+  - Session ID not provided (auto-generation)
+  - Expired keys returned as None
+  - Empty stash operations
+  - Large values in stash
+
+REFERENCE POINTS:
+=================
+
+Session tracking (unused):
+  /home/bk/source/mcproxy/server.py:26
+
+Namespace resolution:
+  /home/bk/source/mcproxy/server.py:96-105
+
+Sandbox execution:
+  /home/bk/source/mcproxy/api_sandbox.py:434-545
+
+Code wrapping (injection point):
+  /home/bk/source/mcproxy/api_sandbox.py:577-742
+
+Global components:
+  /home/bk/source/mcproxy/server.py:20-24
+
+Handle execute (integration point):
+  /home/bk/source/mcproxy/server.py:473-568
+
+Next Steps:
+  - Read session_stash_design.md for full technical spec
+  - Create Phase 1 implementation plan
+  - Begin with SessionStash and SessionManager

@@ -1,59 +1,38 @@
 {
   "manifest": {
     "version": "2.0",
-    "generated_at": "2026-03-01T03:53:15.532609+00:00",
+    "generated_at": "2026-03-02T05:27:53.861100+00:00",
     "servers": {
-      "sequential_thinking": {
+      "valid": {
         "tool_count": 1,
         "categories": [],
         "status": "active"
       },
-      "wikipedia": {
-        "tool_count": 1,
-        "categories": [],
-        "status": "active"
-      },
-      "llms_txt": {
+      "invalid": {
         "tool_count": 1,
         "categories": [],
         "status": "active"
       }
     },
     "tools_by_server": {
-      "sequential_thinking": [
+      "valid": [
         {
-          "name": "think",
-          "description": "Think step by step",
+          "name": "tool1",
+          "description": "",
           "inputSchema": {}
         }
       ],
-      "wikipedia": [
+      "invalid": [
         {
-          "name": "search",
-          "description": "Search Wikipedia",
-          "inputSchema": {}
-        }
-      ],
-      "llms_txt": [
-        {
-          "name": "fetch_docs",
-          "description": "Fetch documentation",
+          "name": "valid",
+          "description": "",
           "inputSchema": {}
         }
       ]
     },
-    "tool_count": 3,
-    "server_count": 3
+    "tool_count": 2,
+    "server_count": 2
   },
-  "namespaces": {
-    "dev": {
-      "servers": [
-        "sequential_thinking",
-        "wikipedia",
-        "llms_txt"
-      ],
-      "isolated": false
-    }
-  },
-  "cached_at": "2026-03-01T03:53:15.532653+00:00"
+  "namespaces": {},
+  "cached_at": "2026-03-02T05:27:53.861193+00:00"
 }
