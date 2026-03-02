@@ -687,3 +687,78 @@ class TestSuggestToolFix:
             "Did you mean 'find_symbols'?" in result
             or "Did you mean 'find_symbol'?" in result
         )
+
+
+class TestExecuteAccessControl:
+    """Tests for execute sandbox enforcing namespace access control."""
+
+    def test_execute_blocks_unauthorized_server(
+        self, sandbox_manifest: SandboxManifest
+    ):
+        """Execute should block calls to servers outside the namespace."""
+        executor = SandboxExecutor(sandbox_manifest, lambda *args: {"result": "ok"})
+
+        # browser namespace can access playwright but NOT filesystem
+        code = 'result = api.server("filesystem").read_file(path="/etc/passwd")'
+        result = executor.execute(code, namespace="browser")
+
+        # Access denied is raised as PermissionError in traceback
+        assert "Access denied" in result["traceback"]
+        assert "filesystem" in result["traceback"]
+
+    def test_execute_blocks_unauthorized_call_tool(
+        self, sandbox_manifest: SandboxManifest
+    ):
+        """Execute should block call_tool to servers outside the namespace."""
+        executor = SandboxExecutor(sandbox_manifest, lambda *args: {"result": "ok"})
+
+        code = (
+            'result = api.call_tool("filesystem", "read_file", {"path": "/etc/passwd"})'
+        )
+        result = executor.execute(code, namespace="browser")
+
+        assert "Access denied" in result["traceback"]
+        assert "filesystem" in result["traceback"]
+
+    def test_execute_allows_authorized_server(self, sandbox_manifest: SandboxManifest):
+        """Execute should allow calls to servers within the namespace."""
+        executor = SandboxExecutor(sandbox_manifest, lambda *args: {"result": "ok"})
+
+        # browser namespace CAN access playwright
+        code = 'result = api.server("playwright").navigate(url="http://example.com")'
+        result = executor.execute(code, namespace="browser")
+
+        assert result["status"] == "success"
+        assert not result.get("traceback")
+        # Tool calls are collected as pending, not executed immediately
+        assert len(result.get("pending_calls", [])) == 1
+        assert result["pending_calls"][0]["server"] == "playwright"
+        assert result["pending_calls"][0]["tool"] == "navigate"
+
+    def test_execute_blocks_cross_namespace_access(
+        self, sandbox_manifest: SandboxManifest
+    ):
+        """Execute should block accessing servers from different isolated namespaces."""
+        executor = SandboxExecutor(sandbox_manifest, lambda *args: {"result": "ok"})
+
+        # privileged namespace extends browser, but browser cannot access privileged
+        code = 'result = api.server("system").admin_action()'
+        result = executor.execute(code, namespace="browser")
+
+        assert "Access denied" in result["traceback"]
+
+    def test_execute_namespace_inheritance_works(
+        self, sandbox_manifest: SandboxManifest
+    ):
+        """Namespaces that extend others should inherit access."""
+        executor = SandboxExecutor(sandbox_manifest, lambda *args: {"result": "ok"})
+
+        # privileged extends browser, so can access playwright
+        code = 'result = api.server("playwright").navigate(url="http://example.com")'
+        result = executor.execute(code, namespace="privileged")
+
+        assert result["status"] == "success"
+        assert not result.get("traceback")
+        # Tool calls are collected as pending, not executed immediately
+        assert len(result.get("pending_calls", [])) == 1
+        assert result["pending_calls"][0]["server"] == "playwright"
