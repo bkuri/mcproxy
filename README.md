@@ -25,7 +25,7 @@ A lightweight MCP gateway that aggregates multiple stdio MCP servers through a s
 - ✅ **Environment Interpolation**: `${VAR_NAME}` in JSON configs
 - ✅ **Docker/Podman Ready**: Containerized deployment
 
-**Note on Hot-Reload**: Only applies to config changes (add/remove servers). Code changes (Python files, TypeScript generators, tool descriptions) require server restart. This is standard for Python applications.
+**Note on Hot-Reload**: Only applies to config changes (add/remove servers, namespaces, groups). Code changes (Python files, TypeScript generators, tool descriptions) require server restart. This is standard for Python applications.
 
 ---
 
@@ -37,6 +37,8 @@ A lightweight MCP gateway that aggregates multiple stdio MCP servers through a s
 - ✅ Add new servers (starts automatically)
 - ✅ Remove servers (stops automatically)
 - ✅ Modify server config (command, args, env, timeout)
+- ✅ Add/remove/modify namespaces (endpoints update immediately)
+- ✅ Add/remove/modify groups (namespace merging updates)
 - ✅ Zero downtime (SSE connections preserved)
 
 ```bash
@@ -45,7 +47,29 @@ vim config/mcproxy.json
 
 # Changes detected within 1 second
 # Servers start/stop/restart as needed
+# Namespaces/groups update dynamically
 # No manual restart required
+```
+
+**Example - Add New Namespace Without Restart:**
+```bash
+# 1. Add to config
+cat > mcproxy.json << 'EOF'
+{
+  "servers": [...],
+  "namespaces": {
+    "home": {
+      "servers": ["home_assistant"],
+      "isolated": true
+    }
+  }
+}
+EOF
+
+# 2. New namespace immediately accessible!
+curl http://localhost:12010/sse/home
+
+# No restart needed! 🎉
 ```
 
 ### What Requires Restart

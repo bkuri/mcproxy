@@ -43,6 +43,19 @@ result = api.server("perplexity_sonar").perplexity_search_web(
 ### When to Search
 
 Only use `mcproxy_search` if you truly don't know which server/tool to use.
+
+### Hot-Reload (No Restart Needed)
+
+MCProxy supports **hot-reload** for configuration changes:
+
+✅ **Add/remove servers** - Automatically starts/stops server processes  
+✅ **Add/remove namespaces** - New namespace endpoints become accessible  
+✅ **Add/remove groups** - Group merging updates dynamically  
+✅ **Modify server configs** - Servers restart automatically  
+
+Just edit `mcproxy.json` and save. Changes apply within 1 second without restart!
+
+❌ **Requires restart**: Python code changes (as expected for any Python app)
 ```
 
 ## Full Configuration

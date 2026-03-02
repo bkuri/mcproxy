@@ -120,6 +120,21 @@ Use the `X-Namespace` header or `/sse/{namespace}` endpoint to control which ser
 - Custom namespaces: Only servers in that namespace
 - Groups: Merge multiple namespaces
 
+### Hot-Reload Namespaces
+
+Namespaces and servers can be added/removed **without restarting** MCProxy:
+
+```bash
+# Edit config
+vim mcproxy.json
+
+# Changes apply within 1 second automatically
+# New namespaces immediately accessible at /sse/{new_namespace}
+# Removed servers stop automatically
+```
+
+This enables zero-downtime configuration updates in production.
+
 ## Getting Help
 
 If you see errors like:
