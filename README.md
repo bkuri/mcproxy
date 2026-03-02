@@ -100,16 +100,35 @@ This means the LLM can start with lightweight queries and fetch detailed schemas
 
 ### API Reference
 
+**MCP Tools** (exposed to clients like opencode):
+- `mcproxy_search` - Discover tools by query (namespace optional)
+- `mcproxy_execute` - Run code with tool access (namespace required)
+
+**Sandbox API** (inside execute):
 ```python
-# Get manifest (all available tools)
-api.manifest()
+# Discover available tools
+api.manifest()                          # All servers/tools
+api.manifest().servers                  # Server names only
 
-# Call tool directly
-await api.call_tool("server_name", "tool_name", {"arg": "value"})
+# Call tools via fluent proxy
+api.server("github").repos.list(owner="octocat")
+api.server("wikipedia").search(query="python")
 
-# Use typed proxy (if stubs generated)
-await api.server("github").repos.list(owner="octocat")
+# Or direct
+api.call_tool("github", "repos.list", {"owner": "octocat"})
+
+# Parallel execution
+results = await forge.parallel([
+    lambda: api.server("github").repos.list(),
+    lambda: api.server("wikipedia").search("python"),
+])
+
+# Session stash (caching across calls)
+stash.put("search_results", data, ttl=3600)
+results = stash.get("search_results")
 ```
+
+Namespaces control access. Use `X-Namespace: dev` header or `/sse/dev` endpoint.
 
 ---
 
