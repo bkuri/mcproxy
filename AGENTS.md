@@ -253,7 +253,15 @@ python-json-logger==2.0.7
 
 ## Code Mode API
 
-MCProxy exposes two meta-tools (`search` + `execute`) that collapse N servers × M tools into ~1K tokens:
+MCProxy exposes two meta-tools (`search` + `execute`) that collapse N servers × M tools into ~1K tokens.
+
+### MCP Tool Names
+
+When connected via MCP client (e.g., opencode), tools appear as:
+- `mcproxy_search` - Discover tools by query
+- `mcproxy_execute` - Run code with tool access
+
+### Usage in Execute Sandbox
 
 ```python
 # Discover available tools
