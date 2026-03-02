@@ -100,8 +100,13 @@ async def handle_initialize(
 
     # Generate TypeScript-style instructions from manifest
     if capability_registry and capability_registry._manifest:
+        logger.debug(
+            f"Manifest has {len(capability_registry._manifest.get('tools_by_server', {}))} servers with tools"
+        )
         instructions = generate_compact_instructions(capability_registry._manifest)
         result["instructions"] = instructions
+    else:
+        logger.warning("No capability registry or manifest available during initialize")
 
     if namespace and capability_registry is not None:
         result["namespace"] = namespace

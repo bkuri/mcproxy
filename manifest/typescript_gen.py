@@ -184,7 +184,16 @@ def generate_compact_instructions(manifest: Dict[str, Any]) -> str:
     # If tools_by_server is empty, fall back to showing server names
     if tools_by_server:
         for server_name, tools in sorted(tools_by_server.items()):
-            tool_names = [t.get("name", "") for t in tools[:5]]  # Show first 5 tools
+            # Tools might be objects with 'name' field or just strings
+            if tools and isinstance(tools[0], dict):
+                tool_names = [
+                    t.get("name", "") for t in tools[:5]
+                ]  # Show first 5 tools
+            else:
+                tool_names = [
+                    str(t) for t in tools[:5]
+                ]  # Fallback to string conversion
+
             if len(tools) > 5:
                 tool_names.append(f"... +{len(tools) - 5} more")
             lines.append(f"  {server_name}: {', '.join(tool_names)}")
