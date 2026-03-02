@@ -171,6 +171,7 @@ def generate_compact_instructions(manifest: Dict[str, Any]) -> str:
         Compact instruction string
     """
     tools_by_server = manifest.get("tools_by_server", {})
+    servers = manifest.get("servers", {})
 
     lines = [
         "MCProxy v2 Code Mode API",
@@ -180,11 +181,18 @@ def generate_compact_instructions(manifest: Dict[str, Any]) -> str:
         "Available servers and tools:",
     ]
 
-    for server_name, tools in sorted(tools_by_server.items()):
-        tool_names = [t.get("name", "") for t in tools[:5]]  # Show first 5 tools
-        if len(tools) > 5:
-            tool_names.append(f"... +{len(tools) - 5} more")
-        lines.append(f"  {server_name}: {', '.join(tool_names)}")
+    # If tools_by_server is empty, fall back to showing server names
+    if tools_by_server:
+        for server_name, tools in sorted(tools_by_server.items()):
+            tool_names = [t.get("name", "") for t in tools[:5]]  # Show first 5 tools
+            if len(tools) > 5:
+                tool_names.append(f"... +{len(tools) - 5} more")
+            lines.append(f"  {server_name}: {', '.join(tool_names)}")
+    else:
+        # Fallback: show server names with tool counts
+        for server_name, server_info in sorted(servers.items()):
+            tool_count = server_info.get("tool_count", 0)
+            lines.append(f"  {server_name}: {tool_count} tools")
 
     lines.extend(
         [
