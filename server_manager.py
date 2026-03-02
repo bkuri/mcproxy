@@ -8,6 +8,7 @@ import asyncio
 import json
 from typing import Any, Callable, Dict, List, Optional
 
+from api_sandbox import suggest_tool_fix
 from logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -238,10 +239,25 @@ class ServerProcess:
 
             if "error" in response:
                 error_details = response.get("error", {})
+                error_msg = str(error_details)
+
+                if (
+                    "not found" in error_msg.lower()
+                    or "unknown tool" in error_msg.lower()
+                ):
+                    available_tools = [t.get("name", "") for t in self.tools]
+                    suggestion = suggest_tool_fix(tool_name, available_tools)
+                    if suggestion:
+                        error_msg = f"Tool '{tool_name}' not found on server '{self.name}'. {suggestion}"
+                    else:
+                        error_msg = (
+                            f"Tool '{tool_name}' not found on server '{self.name}'"
+                        )
+
                 logger.error(
                     f"[CALL_TOOL_REMOTE_ERROR] tool={tool_name} error={error_details}"
                 )
-                raise RuntimeError(f"Tool call failed: {error_details}")
+                raise RuntimeError(f"Tool call failed: {error_msg}")
 
             logger.info(f"[CALL_TOOL_SUCCESS] tool={tool_name}")
             return response.get("result", {})

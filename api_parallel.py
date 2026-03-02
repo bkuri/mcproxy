@@ -1,0 +1,122 @@
+"""Parallel execution support for MCProxy.
+
+Provides concurrent tool execution with semaphore-based concurrency limiting.
+"""
+
+import asyncio
+from dataclasses import dataclass
+from typing import Any, Awaitable, Callable, List, Optional, TypeVar
+
+from logging_config import get_logger
+
+logger = get_logger(__name__)
+
+T = TypeVar("T")
+
+DEFAULT_MAX_CONCURRENCY: int = 5
+
+
+@dataclass
+class ParallelResult:
+    """Result from a single parallel execution."""
+
+    status: str
+    result: Any = None
+    error: Optional[str] = None
+
+
+class ParallelExecutor:
+    """Execute multiple callables concurrently with concurrency limiting.
+
+    Uses asyncio.Semaphore for concurrency control and asyncio.gather
+    with return_exceptions=True for allSettled pattern (no fail-fast).
+
+    Example:
+        executor = ParallelExecutor(max_concurrency=5)
+        results = await executor.execute_parallel([
+            lambda: tool1(arg="a"),
+            lambda: tool2(arg="b"),
+        ])
+    """
+
+    def __init__(self, max_concurrency: int = DEFAULT_MAX_CONCURRENCY):
+        """Initialize ParallelExecutor.
+
+        Args:
+            max_concurrency: Maximum number of concurrent executions
+        """
+        self._max_concurrency = max_concurrency
+
+    async def execute_parallel(
+        self,
+        callables: List[Callable[[], Awaitable[T]]],
+    ) -> List[ParallelResult]:
+        """Execute multiple async callables concurrently.
+
+        Args:
+            callables: List of async callables to execute
+
+        Returns:
+            List of ParallelResult objects in order (allSettled pattern)
+        """
+        if not callables:
+            return []
+
+        semaphore = asyncio.Semaphore(self._max_concurrency)
+
+        async def run_with_semaphore(
+            coro_func: Callable[[], Awaitable[T]],
+        ) -> ParallelResult:
+            async with semaphore:
+                try:
+                    result = await coro_func()
+                    return ParallelResult(status="fulfilled", result=result)
+                except Exception as e:
+                    error_msg = f"{type(e).__name__}: {str(e)}"
+                    logger.debug(f"Parallel execution failed: {error_msg}")
+                    return ParallelResult(status="rejected", error=error_msg)
+
+        tasks = [run_with_semaphore(c) for c in callables]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        final_results = []
+        for r in results:
+            if isinstance(r, ParallelResult):
+                final_results.append(r)
+            elif isinstance(r, Exception):
+                final_results.append(
+                    ParallelResult(
+                        status="rejected",
+                        error=f"{type(r).__name__}: {str(r)}",
+                    )
+                )
+            else:
+                final_results.append(ParallelResult(status="fulfilled", result=r))
+
+        return final_results
+
+    @property
+    def max_concurrency(self) -> int:
+        """Get the maximum concurrency limit."""
+        return self._max_concurrency
+
+    @max_concurrency.setter
+    def max_concurrency(self, value: int) -> None:
+        """Set the maximum concurrency limit."""
+        if value < 1:
+            raise ValueError("max_concurrency must be at least 1")
+        self._max_concurrency = value
+
+
+def create_parallel_executor(
+    max_concurrency: int = DEFAULT_MAX_CONCURRENCY,
+) -> ParallelExecutor:
+    """Factory function to create a ParallelExecutor.
+
+    Args:
+        max_concurrency: Maximum concurrent executions (default: 5)
+
+    Returns:
+        Configured ParallelExecutor instance
+    """
+    return ParallelExecutor(max_concurrency=max_concurrency)

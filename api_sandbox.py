@@ -10,14 +10,54 @@ import subprocess
 import time
 import unicodedata
 from dataclasses import dataclass, field
+from difflib import SequenceMatcher
 from typing import Any, Callable, Dict, List, Optional, Tuple, TYPE_CHECKING
 
+from code_validator import validate_code_for_dangerous_patterns
 from logging_config import get_logger
 
 if TYPE_CHECKING:
     from api_manifest import CapabilityRegistry as ManifestRegistry
 
 logger = get_logger(__name__)
+
+FUZZY_MATCH_THRESHOLD: float = 0.6
+MAX_SUGGESTIONS: int = 5
+
+
+def suggest_tool_fix(tool_name: str, available_tools: List[str]) -> Optional[str]:
+    """Suggest a tool name correction using fuzzy matching.
+
+    Args:
+        tool_name: The misspelled tool name
+        available_tools: List of valid tool names to search
+
+    Returns:
+        Suggestion string if a close match is found, otherwise list of available tools
+    """
+    if not available_tools:
+        return None
+
+    best_match = None
+    best_ratio = 0.0
+
+    for candidate in available_tools:
+        ratio = SequenceMatcher(None, tool_name.lower(), candidate.lower()).ratio()
+        if ratio > best_ratio:
+            best_ratio = ratio
+            best_match = candidate
+
+    if best_ratio >= FUZZY_MATCH_THRESHOLD:
+        return f"Did you mean '{best_match}'?"
+
+    if len(available_tools) <= MAX_SUGGESTIONS:
+        tools_list = ", ".join(f"'{t}'" for t in available_tools)
+    else:
+        tools_list = ", ".join(f"'{t}'" for t in available_tools[:MAX_SUGGESTIONS])
+        tools_list += f", ... ({len(available_tools) - MAX_SUGGESTIONS} more)"
+
+    return f"Available tools: {tools_list}"
+
 
 BLOCKED_IMPORTS: frozenset[str] = frozenset(
     [
@@ -286,6 +326,7 @@ class SandboxExecutor:
         tool_executor: Any,
         uv_path: str = "uv",
         default_timeout_secs: int = 30,
+        max_concurrency: int = 5,
     ):
         """Initialize SandboxExecutor.
 
@@ -294,11 +335,13 @@ class SandboxExecutor:
             tool_executor: Callable to execute tools
             uv_path: Path to uv binary
             default_timeout_secs: Default execution timeout
+            max_concurrency: Maximum concurrent parallel executions
         """
         self._manifest = manifest
         self._tool_executor = tool_executor
         self._uv_path = uv_path
         self._default_timeout_secs = default_timeout_secs
+        self._max_concurrency = max_concurrency
 
     def validate_code(self, code: str) -> Tuple[bool, str]:
         """Validate code before execution.
@@ -307,6 +350,7 @@ class SandboxExecutor:
         - Size check
         - Unicode normalization
         - Comment stripping for analysis
+        - AST-based dangerous pattern detection
         - AST parsing for blocked imports/builtins
 
         Args:
@@ -321,6 +365,10 @@ class SandboxExecutor:
         normalized = unicodedata.normalize("NFKC", code)
 
         code_for_analysis = self._strip_comments(normalized)
+
+        is_safe, danger_error = validate_code_for_dangerous_patterns(code_for_analysis)
+        if not is_safe and danger_error:
+            return False, f"Dangerous pattern detected: {danger_error['error']}"
 
         try:
             tree = ast.parse(code_for_analysis)
@@ -437,6 +485,7 @@ class SandboxExecutor:
         namespace: str,
         timeout_secs: Optional[int] = None,
         dependencies: Optional[List[str]] = None,
+        session: Optional[Any] = None,
     ) -> Dict[str, Any]:
         """Execute user code in a uv subprocess.
 
@@ -445,6 +494,7 @@ class SandboxExecutor:
             namespace: Namespace for access control
             timeout_secs: Execution timeout (uses default if None)
             dependencies: Optional list of pip dependencies
+            session: Optional SessionStash for session-scoped storage
 
         Returns:
             Dict with status, result, traceback, execution_time_ms
@@ -462,7 +512,7 @@ class SandboxExecutor:
 
         access_control = NamespaceAccessControl(self._manifest)
 
-        wrapped_code = self._wrap_code(code, namespace, access_control)
+        wrapped_code = self._wrap_code(code, namespace, access_control, session)
 
         env = self._build_env(namespace, access_control)
 
@@ -479,7 +529,6 @@ class SandboxExecutor:
             execution_time_ms = int((time.perf_counter() - start_time) * 1000)
 
             try:
-                # Find the last JSON object in output (user code may print)
                 lines = stdout.strip().split("\n")
                 json_line = None
                 for line in reversed(lines):
@@ -501,6 +550,10 @@ class SandboxExecutor:
                     }
 
                 result = json.loads(json_line)
+
+                if session is not None and "stash_updates" in result:
+                    self._apply_stash_updates(session, result["stash_updates"])
+
                 return {
                     "status": "success",
                     "result": result.get("result"),
@@ -544,11 +597,43 @@ class SandboxExecutor:
                 "execution_time_ms": execution_time_ms,
             }
 
+    def _apply_stash_updates(self, session: Any, updates: List[Dict[str, Any]]) -> None:
+        """Apply stash updates from sandbox execution to session.
+
+        Args:
+            session: SessionStash instance
+            updates: List of stash operations from sandbox
+        """
+        import asyncio
+
+        async def _apply():
+            for update in updates:
+                op = update.get("op")
+                key = update.get("key")
+                if op == "put":
+                    value = update.get("value")
+                    ttl = update.get("ttl_seconds")
+                    await session.put(key, value, ttl_seconds=ttl)
+                elif op == "delete":
+                    await session.delete(key)
+                elif op == "clear":
+                    await session.clear()
+
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.create_task(_apply())
+            else:
+                loop.run_until_complete(_apply())
+        except Exception as e:
+            logger.error(f"[STASH] Failed to apply updates: {e}")
+
     def _wrap_code(
         self,
         user_code: str,
         namespace: str,
         access_control: NamespaceAccessControl,
+        session: Optional[Any] = None,
     ) -> str:
         """Wrap user code with sandbox infrastructure.
 
@@ -556,9 +641,10 @@ class SandboxExecutor:
             user_code: User's Python code
             namespace: Namespace for access control
             access_control: Access control instance
+            session: Optional SessionStash for session-scoped storage
 
         Returns:
-            Wrapped code that includes api API
+            Wrapped code that includes api, stash, and forge APIs
         """
         manifest_json = json.dumps(
             {
@@ -573,6 +659,25 @@ class SandboxExecutor:
                 "groups": self._manifest.groups,
             }
         )
+
+        stash_data_json = "{}"
+        if session is not None:
+            import asyncio
+
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    stash_data_json = "{}"
+                else:
+                    keys = loop.run_until_complete(session.keys())
+                    stash_data = {}
+                    for key in keys:
+                        val = loop.run_until_complete(session.get(key))
+                        if val is not None:
+                            stash_data[key] = val
+                    stash_data_json = json.dumps(stash_data)
+            except Exception:
+                stash_data_json = "{}"
 
         return f'''
 import json
@@ -715,12 +820,90 @@ class _APIProxy:
 
 api = _APIProxy("{namespace}", _access_control, _executor, _manifest)
 
+class _StashProxy:
+    def __init__(self, initial_data=None):
+        self._data = initial_data or {{}}
+        self._updates = []
+    
+    def get(self, key, default=None):
+        return self._data.get(key, default)
+    
+    def put(self, key, value, ttl_seconds=None):
+        self._data[key] = value
+        self._updates.append({{"op": "put", "key": key, "value": value, "ttl_seconds": ttl_seconds}})
+        return value
+    
+    def has(self, key):
+        return key in self._data
+    
+    def delete(self, key):
+        if key in self._data:
+            del self._data[key]
+            self._updates.append({{"op": "delete", "key": key}})
+            return True
+        return False
+    
+    def clear(self):
+        self._data.clear()
+        self._updates.append({{"op": "clear"}})
+    
+    def keys(self):
+        return list(self._data.keys())
+    
+    def _get_updates(self):
+        return self._updates
+
+_stash_initial = {stash_data_json}
+stash = _StashProxy(_stash_initial)
+
+class _ParallelResult:
+    def __init__(self, status, result=None, error=None):
+        self.status = status
+        self.result = result
+        self.error = error
+    
+    def to_dict(self):
+        return {{"status": self.status, "result": self.result, "error": self.error}}
+
+class _ForgeProxy:
+    def __init__(self, max_concurrency=5):
+        self._max_concurrency = max_concurrency
+    
+    async def parallel(self, callables, max_concurrency=None):
+        import asyncio
+        limit = max_concurrency if max_concurrency is not None else self._max_concurrency
+        semaphore = asyncio.Semaphore(limit)
+        
+        async def run_with_limit(coro_func):
+            async with semaphore:
+                try:
+                    result = await coro_func()
+                    return _ParallelResult(status="fulfilled", result=result)
+                except Exception as e:
+                    return _ParallelResult(status="rejected", error=f"{{type(e).__name__}}: {{str(e)}}")
+        
+        tasks = [run_with_limit(c) for c in callables]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        final = []
+        for r in results:
+            if isinstance(r, _ParallelResult):
+                final.append(r)
+            elif isinstance(r, Exception):
+                final.append(_ParallelResult(status="rejected", error=f"{{type(r).__name__}}: {{str(r)}}"))
+            else:
+                final.append(_ParallelResult(status="fulfilled", result=r))
+        
+        return [f.to_dict() for f in final]
+
+forge = _ForgeProxy(max_concurrency={self._max_concurrency})
+
 _result = None
 _error = None
 
 try:
     import asyncio
-    local_vars = {{"__builtins__": __builtins__, "api": api, "asyncio": asyncio}}
+    local_vars = {{"__builtins__": __builtins__, "api": api, "stash": stash, "asyncio": asyncio, "forge": forge}}
     exec({repr(user_code)}, local_vars, local_vars)
     if "run" in local_vars and callable(local_vars["run"]):
         run_func = local_vars["run"]
@@ -736,6 +919,7 @@ output = {{
     "result": _result,
     "traceback": _error,
     "pending_calls": _executor.get_pending(),
+    "stash_updates": stash._get_updates(),
 }}
 
 print(json.dumps(output))

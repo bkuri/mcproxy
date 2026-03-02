@@ -14,6 +14,7 @@ from fastapi.responses import StreamingResponse
 from api_manifest import CapabilityRegistry, EventHookManager, ManifestQuery
 from api_sandbox import SandboxExecutor, SandboxManifest
 from logging_config import get_logger
+from session_stash import SessionManager, SessionStash
 
 logger = get_logger(__name__)
 
@@ -21,6 +22,7 @@ server_manager: Optional[Any] = None
 capability_registry: Optional[CapabilityRegistry] = None
 event_hook_manager: Optional[EventHookManager] = None
 sandbox_executor: Optional[SandboxExecutor] = None
+session_manager: Optional[SessionManager] = None
 _tool_executor: Optional[Callable] = None
 
 _connection_namespaces: Dict[int, str] = {}
@@ -103,6 +105,18 @@ def _get_namespace_from_request(request: Request) -> Optional[str]:
         Namespace name from X-Namespace header, or None
     """
     return request.headers.get("X-Namespace")
+
+
+def _get_session_id_from_request(request: Request) -> Optional[str]:
+    """Extract session ID from request headers.
+
+    Args:
+        request: FastAPI request object
+
+    Returns:
+        Session ID from X-Session-ID header, or None
+    """
+    return request.headers.get("X-Session-ID")
 
 
 def _resolve_default_namespace() -> str:
@@ -282,6 +296,7 @@ async def handle_message(
     Processes initialize, tools/list, and tools/call requests.
     v2.0 only supports search and execute meta-tools.
     Supports X-Namespace header for namespace context.
+    Supports X-Session-ID header for session context.
 
     Args:
         request: FastAPI request object
@@ -293,7 +308,6 @@ async def handle_message(
         msg_id = body.get("id")
         params = body.get("params", {})
 
-        # Path namespace takes precedence over header
         header_ns = path_namespace or _get_namespace_from_request(request)
         if header_ns and not _validate_namespace(header_ns):
             logger.warning(f"[MESSAGE] Invalid X-Namespace header: {header_ns}")
@@ -303,15 +317,20 @@ async def handle_message(
                 "error": {"code": -32602, "message": f"Invalid namespace: {header_ns}"},
             }
 
+        session_id = _get_session_id_from_request(request)
+
         ns_context = f" namespace={header_ns}" if header_ns else ""
-        logger.debug(f"[MESSAGE] method={method}{ns_context}")
+        sess_context = f" session={session_id}" if session_id else ""
+        logger.debug(f"[MESSAGE] method={method}{ns_context}{sess_context}")
 
         if method == "initialize":
             return await handle_initialize(msg_id, params, namespace=header_ns)
         elif method == "tools/list":
             return await handle_tools_list(msg_id, namespace=header_ns)
         elif method == "tools/call":
-            return await handle_tools_call(msg_id, params, namespace=header_ns)
+            return await handle_tools_call(
+                msg_id, params, namespace=header_ns, session_id=session_id
+            )
         else:
             return {
                 "jsonrpc": "2.0",
@@ -371,7 +390,10 @@ async def handle_tools_list(
 
 
 async def handle_tools_call(
-    msg_id: Any, params: Dict[str, Any], namespace: Optional[str] = None
+    msg_id: Any,
+    params: Dict[str, Any],
+    namespace: Optional[str] = None,
+    session_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Handle tools/call request - route to search or execute.
 
@@ -379,6 +401,7 @@ async def handle_tools_call(
         msg_id: JSON-RPC message ID
         params: Tool call parameters
         namespace: Optional namespace context from X-Namespace header
+        session_id: Optional session ID from X-Session-ID header
 
     Returns:
         MCP response with tool result or error
@@ -387,7 +410,8 @@ async def handle_tools_call(
     arguments = params.get("arguments", {})
 
     ns_context = f" namespace={namespace}" if namespace else ""
-    logger.info(f"[META_TOOL_CALL] tool={tool_name}{ns_context}")
+    sess_context = f" session={session_id}" if session_id else ""
+    logger.info(f"[META_TOOL_CALL] tool={tool_name}{ns_context}{sess_context}")
 
     try:
         if tool_name == "search":
@@ -396,7 +420,10 @@ async def handle_tools_call(
             )
         elif tool_name == "execute":
             return await handle_execute(
-                msg_id, arguments, connection_namespace=namespace
+                msg_id,
+                arguments,
+                connection_namespace=namespace,
+                session_id=session_id,
             )
         else:
             return {
@@ -471,7 +498,10 @@ async def handle_search(
 
 
 async def handle_execute(
-    msg_id: Any, params: Dict, connection_namespace: Optional[str] = None
+    msg_id: Any,
+    params: Dict,
+    connection_namespace: Optional[str] = None,
+    session_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Handle execute meta-tool.
 
@@ -479,6 +509,7 @@ async def handle_execute(
         msg_id: JSON-RPC message ID
         params: Execution parameters (code, namespace, timeout_secs)
         connection_namespace: Namespace from connection context (X-Namespace header)
+        session_id: Optional session ID for session-scoped storage
 
     Returns:
         MCP response with execution result
@@ -496,7 +527,8 @@ async def handle_execute(
     timeout_secs = params.get("timeout_secs")
 
     log_ns = f" namespace={effective_namespace}" if effective_namespace else ""
-    logger.debug(f"[EXECUTE]{log_ns} timeout={timeout_secs}")
+    log_sess = f" session={session_id}" if session_id else ""
+    logger.debug(f"[EXECUTE]{log_ns}{log_sess} timeout={timeout_secs}")
 
     try:
         if sandbox_executor is None:
@@ -521,11 +553,17 @@ async def handle_execute(
                 },
             }
 
+        session: Optional[SessionStash] = None
+        if session_manager is not None:
+            session = await session_manager.get_or_create(session_id)
+
         result = sandbox_executor.execute(
-            code, namespace=effective_namespace, timeout_secs=timeout_secs
+            code,
+            namespace=effective_namespace,
+            timeout_secs=timeout_secs,
+            session=session,
         )
 
-        # Process pending tool calls from sandbox execution
         pending_calls = result.get("pending_calls", [])
         if pending_calls and _tool_executor:
             call_results = []

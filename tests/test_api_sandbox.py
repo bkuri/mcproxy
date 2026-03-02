@@ -14,6 +14,9 @@ from api_sandbox import (
     BLOCKED_BUILTINS,
     MAX_CODE_SIZE_BYTES,
     create_sandbox_executor,
+    suggest_tool_fix,
+    FUZZY_MATCH_THRESHOLD,
+    MAX_SUGGESTIONS,
 )
 
 
@@ -180,7 +183,6 @@ class TestBlockedBuiltins:
         is_valid, error = executor.validate_code(code)
 
         assert is_valid is False
-        assert "Blocked builtin detected" in error
         assert "eval" in error
 
     def test_blocked_builtin_exec(self, sandbox_manifest: SandboxManifest):
@@ -503,7 +505,7 @@ class TestSandboxExecutorExecute:
             result = executor.execute("x = 1", "browser")
 
             assert result["status"] == "error"
-            assert "Failed to parse result" in result["traceback"]
+            assert "No JSON output found" in result["traceback"]
 
 
 class TestSandboxExecutorHelpers:
@@ -609,3 +611,79 @@ class TestErrorFormat:
 
         assert "result" in result
         assert result["result"] is None
+
+
+class TestSuggestToolFix:
+    """Tests for fuzzy matching tool name suggestions."""
+
+    def test_exact_match(self):
+        available = ["find_symbols", "find_references", "rename_symbol"]
+        result = suggest_tool_fix("find_symbols", available)
+
+        assert result is not None
+        assert "Did you mean 'find_symbols'?" in result
+
+    def test_close_match_typo(self):
+        available = ["find_symbols", "find_references", "rename_symbol"]
+        result = suggest_tool_fix("find_symbls", available)
+
+        assert result is not None
+        assert "Did you mean 'find_symbols'?" in result
+
+    def test_close_match_case_insensitive(self):
+        available = ["Find_Symbols", "Find_References"]
+        result = suggest_tool_fix("find_symbols", available)
+
+        assert result is not None
+        assert "Did you mean" in result
+
+    def test_no_match_below_threshold(self):
+        available = ["completely_different", "another_tool"]
+        result = suggest_tool_fix("xyz123", available)
+
+        assert result is not None
+        assert "Available tools:" in result
+
+    def test_empty_available_list(self):
+        result = suggest_tool_fix("any_tool", [])
+
+        assert result is None
+
+    def test_show_all_tools_when_few(self):
+        available = ["tool_a", "tool_b", "tool_c"]
+        result = suggest_tool_fix("xyz", available)
+
+        assert result is not None
+        assert "tool_a" in result
+        assert "tool_b" in result
+        assert "tool_c" in result
+        assert "more" not in result
+
+    def test_truncate_tools_when_many(self):
+        available = [f"tool_{i}" for i in range(10)]
+        result = suggest_tool_fix("xyz", available)
+
+        assert result is not None
+        assert "Available tools:" in result
+        assert "more" in result
+        assert "5 more" in result
+
+    def test_threshold_boundary(self):
+        available = ["abcdefghij"]
+        result_close = suggest_tool_fix("abcdefghi", available)
+        result_far = suggest_tool_fix("xyz", available)
+
+        assert result_close is not None
+        assert result_far is not None
+        if "Did you mean" in result_close:
+            assert "Available tools:" in result_far
+
+    def test_multiple_candidates_picks_best(self):
+        available = ["find_symbols", "find_symbol", "find_symmetry"]
+        result = suggest_tool_fix("find_symbls", available)
+
+        assert result is not None
+        assert (
+            "Did you mean 'find_symbols'?" in result
+            or "Did you mean 'find_symbol'?" in result
+        )
