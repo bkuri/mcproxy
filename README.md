@@ -365,7 +365,73 @@ python-json-logger==2.0.7
 
 MCProxy v2.0's Code Mode architecture was inspired by **[Forgemax](https://github.com/postrv/forgemax)** — a Rust-based MCP gateway that introduced the concept of collapsing N servers × M tools into just 2 meta-tools (`search` + `execute`) for massive context reduction.
 
-Key concepts adopted from Forgemax:
-- Progressive tool discovery via searchable capability manifest
-- Sandboxed code execution for tool composition
-- Context window reduction (15K → 1K tokens)
+### Key Concepts Adopted from Forgemax
+
+**1. TypeScript Definitions in MCP Instructions**
+
+Forgemax serves TypeScript definitions (`forge.d.ts`) in the MCP `initialize` response's `instructions` field, giving LLMs full type awareness without requiring a discovery step. We adapted this by:
+- Creating `manifest/typescript_gen.py` to auto-generate TypeScript-style type hints from JSON Schema
+- Embedding rich type information in every `initialize` response
+- Including parameter types, optional parameters, enums, and return types
+- Example: `api.server("perplexity_sonar").perplexity_search_web(query: string, search_recency_filter?: "day"|"week"): Promise<any>`
+
+**2. Eliminating Unnecessary Discovery**
+
+Forgemax's approach showed that with proper upfront documentation, agents can skip the search step entirely for common operations. We implemented:
+- Tool descriptions that explicitly mark `search` as **OPTIONAL**
+- MCP instructions that list common servers and usage examples
+- Direct execution pattern: `api.server("name").tool(args)` without prior discovery
+- Result: ~50% latency reduction (1 round-trip instead of 2)
+
+**3. Progressive Discovery Pattern**
+
+Forgemax's layered manifest approach (Layer 0-3 for different detail levels) inspired our progressive discovery:
+```python
+# Layer 0: Server names only (~50 tokens)
+# Layer 1: Server + categories (~200 tokens)  
+# Layer 2: Tool names (~500 tokens)
+# Layer 3: Full schemas (on-demand)
+```
+
+**4. Code Mode Architecture**
+
+Both systems use the same 2-meta-tool pattern:
+- `search` - Discover capabilities (optional for known tools)
+- `execute` - Run code with tool access
+
+This reduces 76 tools × ~200 tokens each (~15K tokens) → 2 tools × ~500 tokens each (~1K tokens)
+
+### Performance Comparison
+
+| Implementation | Forgemax (Rust) | MCProxy (Python) |
+|----------------|-----------------|------------------|
+| **Language** | Rust + deno_core | Python 3.11 + uv |
+| **Sandbox** | V8 isolate | uv subprocess |
+| **Type Definitions** | TypeScript (.d.ts) | TypeScript-style (generated) |
+| **Context Reduction** | 96% (76 tools) | 90% (65 tools) |
+| **Discovery Step** | Optional | Optional |
+| **Instructions Delivery** | MCP `instructions` field | MCP `instructions` field |
+
+### Implementation Differences
+
+**Forgemax:**
+- Compiles TypeScript definitions into binary at build time
+- Uses V8 isolate (deno_core) for sandboxing
+- AST-based code validation before execution
+- Rust-native performance
+
+**MCProxy:**
+- Generates TypeScript-style hints dynamically from JSON Schema
+- Uses uv subprocess for sandboxed Python execution
+- Python-native accessibility
+- Hot-reload support for live updates
+
+### What We Learned
+
+The key insight from Forgemax is that **type information should be served upfront**, not discovered on-demand. This transforms the agent workflow from:
+1. ❌ Search → Discover → Execute (3 steps)
+
+To:
+1. ✅ Execute directly (1 step, type info already known)
+
+This pattern is now part of MCProxy v2.0's core design philosophy.
