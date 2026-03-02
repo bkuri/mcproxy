@@ -100,6 +100,14 @@ class _NamespaceAccessControl:
 
 
 class _DynamicProxy:
+    """Dynamic proxy for calling MCP tools.
+    
+    Supports three patterns for tool access:
+    1. Underscore notation (auto-converts to hyphens): cs.get_coins() -> get-coins
+    2. Bracket notation: cs["get-coins"]()
+    3. Getattr: getattr(cs, "get-coins")()
+    """
+    
     def __init__(self, server_name, namespace, access_control, tool_executor):
         self._server_name = server_name
         self._namespace = namespace
@@ -107,8 +115,28 @@ class _DynamicProxy:
         self._tool_executor = tool_executor
     
     def __getattr__(self, tool_name):
+        """Convert attribute access to tool call.
+        
+        Automatically converts underscores to hyphens to match MCP tool naming:
+        - get_coins -> get-coins
+        - get_coin_by_id -> get-coin-by-id
+        """
+        # Convert underscores to hyphens for MCP tool naming convention
+        actual_tool_name = tool_name.replace("_", "-")
+        
+        def _call(**kwargs):
+            return self._tool_executor(self._server_name, actual_tool_name, kwargs)
+        
+        return _call
+    
+    def __getitem__(self, tool_name):
+        """Support bracket notation for tool names with special characters.
+        
+        Example: cs["get-coins"](limit=3)
+        """
         def _call(**kwargs):
             return self._tool_executor(self._server_name, tool_name, kwargs)
+        
         return _call
 
 
