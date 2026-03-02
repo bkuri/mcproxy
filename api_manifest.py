@@ -169,10 +169,10 @@ class CapabilityRegistry:
         return None
 
     def get_servers(self, namespace: Optional[str] = None) -> List:
-        """Get filtered server list based on namespace.
+        """Get filtered server list based on namespace or group.
 
         Args:
-            namespace: Optional namespace to filter by
+            namespace: Optional namespace or group name to filter by
 
         Returns:
             List of server names
@@ -184,7 +184,10 @@ class CapabilityRegistry:
         if namespace is None:
             return list(self._manifest.get("servers", {}).keys())
 
-        resolved_servers = self.resolve_namespace(namespace)
+        resolved_servers, error = self.resolve_endpoint_to_servers(namespace)
+        if error:
+            logger.warning(f"Namespace/group resolution failed: {error}")
+            return []
         return [s for s in resolved_servers if s in self._manifest.get("servers", {})]
 
     def get_tools(self, server: str, namespace: Optional[str] = None) -> List:
@@ -202,9 +205,14 @@ class CapabilityRegistry:
             return []
 
         if namespace is not None:
-            allowed_servers = self.resolve_namespace(namespace)
+            allowed_servers, error = self.resolve_endpoint_to_servers(namespace)
+            if error:
+                logger.warning(f"Namespace/group resolution failed: {error}")
+                return []
             if server not in allowed_servers:
-                logger.warning(f"Server '{server}' not in namespace '{namespace}'")
+                logger.warning(
+                    f"Server '{server}' not in namespace/group '{namespace}'"
+                )
                 return []
 
         return self._manifest.get("tools_by_server", {}).get(server, [])
