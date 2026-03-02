@@ -233,6 +233,12 @@ async def handle_search(
         mq = ManifestQuery(capability_registry)
         results = mq.search(query, namespace=effective_namespace, max_depth=max_depth)
 
+        if not effective_namespace:
+            results["warning"] = (
+                "No namespace specified. Results include default servers only. "
+                "Isolated namespaces (e.g., 'system', 'home') require explicit namespace parameter."
+            )
+
         content = [{"type": "text", "text": json.dumps(results, indent=2)}]
         return {"jsonrpc": "2.0", "id": msg_id, "result": {"content": content}}
 
