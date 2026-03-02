@@ -103,12 +103,11 @@ logger = logging.getLogger(__name__)
 - Hot-reload without dropping connections
 - Namespace-based access control for server isolation
 
-### Tool Naming Convention
+### Internal Tool Naming (v1 only)
 ```python
-# Format: {server_name}__{tool_name}
+# Legacy v1 format: {server_name}__{tool_name}
+# NOTE: v2 API uses api.server("name").tool() instead
 tool_name = f"{server_name}__{original_tool_name}"
-
-# Example: playwright__navigate_page
 ```
 
 ## Project Structure
