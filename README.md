@@ -39,7 +39,24 @@ cp mcp-servers.v2.example.json config/mcp-servers.json
 python main.py --config config/mcp-servers.json --log
 ```
 
-### Code Mode: Search for Tools
+### Agent Setup (Important!)
+
+For best performance, add this to your agent's `CLAUDE.md` or `AGENTS.md`:
+
+```markdown
+## MCProxy Tools
+
+Skip search for known tools - call execute directly:
+- perplexity_sonar, wikipedia, playwright, think_tool
+- sequential_thinking, fear_greed_index, coincap, asset_price
+
+Example:
+mcproxy_execute(code='api.server("perplexity_sonar").perplexity_search_web(query="news")')
+```
+
+See [docs/AGENT_SETUP.md](docs/AGENT_SETUP.md) for full setup guide.
+
+### Code Mode: Direct Execution (Recommended)
 
 ```bash
 curl -X POST http://localhost:12010/message \
