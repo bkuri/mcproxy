@@ -23,8 +23,10 @@ logger = get_logger(__name__)
 META_TOOLS = [
     {
         "name": "search",
-        "description": "Search for tools and capabilities in the manifest registry. "
-        "Returns matching tools with metadata and usage examples.",
+        "description": "OPTIONAL - Only use if you don't know the server/tool name. "
+        "For common tools (perplexity_sonar, wikipedia, playwright, think_tool, etc.), "
+        "skip this and call execute directly with api.server('name').tool(args). "
+        "Returns matching tools with metadata.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -47,14 +49,15 @@ META_TOOLS = [
     },
     {
         "name": "execute",
-        "description": "Execute a tool in a sandboxed environment. "
-        "Returns execution results with safety validation.",
+        "description": "Execute Python code with tool access via api.server('name').tool(args). "
+        "Example: api.server('perplexity_sonar').perplexity_search_web(query='news', search_recency_filter='day'). "
+        "No need to search first for known tools - call this directly.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "code": {
                     "type": "string",
-                    "description": "Code or command to execute",
+                    "description": "Python code to execute",
                 },
                 "namespace": {
                     "type": "string",
