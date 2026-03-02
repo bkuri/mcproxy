@@ -245,10 +245,9 @@ class HotReloadServerManager:
             # Hot-reload namespaces and groups in capability registry
             if self._capability_registry:
                 logger.info("Hot-reloading namespaces and groups...")
-                # Update the config reference in the registry
-                self._capability_registry._config = new_config
-                # Reload namespaces and groups from the new config
-                self._capability_registry._load_namespaces_from_config()
+                # Update namespaces and groups directly from the new config
+                self._capability_registry._namespaces = new_config.get("namespaces", {})
+                self._capability_registry._groups = new_config.get("groups", {})
                 logger.info(
                     f"Reloaded {len(self._capability_registry._namespaces)} namespaces, "
                     f"{len(self._capability_registry._groups)} groups"
