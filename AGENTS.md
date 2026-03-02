@@ -251,55 +251,34 @@ uvicorn==0.24.0
 python-json-logger==2.0.7
 ```
 
-## MCP Tool Access (Search & Execute)
+## Code Mode API
 
-MCProxy exposes two tools for agents to discover and run MCP tools:
-
-### mcproxy_search
-Search for tools using natural language queries. Returns matching tools with metadata.
+MCProxy exposes two meta-tools (`search` + `execute`) that collapse N servers × M tools into ~1K tokens:
 
 ```python
-# Example: Find tools related to web browsing
-mcproxy_search(query="web browsing fetch url", namespace="dev")
+# Discover available tools
+api.manifest()                          # All servers/tools
+api.manifest().servers                  # Server names only
+
+# Call tools via fluent proxy
+api.server("github").repos.list(owner="octocat")
+api.server("wikipedia").search(query="python")
+
+# Or direct
+api.call_tool("github", "repos.list", {"owner": "octocat"})
+
+# Parallel execution
+results = await forge.parallel([
+    lambda: api.server("github").repos.list(),
+    lambda: api.server("wikipedia").search("python"),
+])
+
+# Session stash (caching across calls)
+stash.put("search_results", data, ttl=3600)
+results = stash.get("search_results")
 ```
 
-### mcproxy_execute
-Execute a tool in a sandboxed environment with optional namespace context.
-
-```python
-# Example: Execute a tool
-mcproxy_execute(
-    code="playwright__navigate_page",
-    namespace="dev",
-    timeout_secs=30
-)
-```
-
-### Usage Pattern
-
-1. **Always search first** - Use `mcproxy_search` to find available tools before executing
-2. **Check namespace** - Ensure you're using the correct namespace for the tools you need
-3. **Use timeouts** - Always set reasonable timeouts (default 30s) to prevent hangs
-4. **Handle errors gracefully** - Check the response for errors and handle them appropriately
-
-### Common Patterns
-
-```python
-# Search for a specific capability
-tools = mcproxy_search(query="search wikipedia")
-
-# Execute with explicit namespace
-result = mcproxy_execute(code="wikipedia__search", namespace="dev")
-
-# Find then execute
-found_tools = mcproxy_search(query="web content extraction")
-if found_tools:
-    result = mcproxy_execute(code=found_tools[0].name, namespace="dev")
-
-# Skip search: use cached tool name from previous search
-# Tool names are stable (format: {server}__{tool_name})
-result = mcproxy_execute(code="playwright__navigate_page", namespace="dev", timeout_secs=30)
-```
+Namespaces control access. Use `X-Namespace: dev` header or `/sse/dev` endpoint.
 
 ## Issue Tracking
 
