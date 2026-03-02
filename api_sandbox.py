@@ -479,11 +479,33 @@ class SandboxExecutor:
             execution_time_ms = int((time.perf_counter() - start_time) * 1000)
 
             try:
-                result = json.loads(stdout)
+                # Find the last JSON object in output (user code may print)
+                lines = stdout.strip().split("\n")
+                json_line = None
+                for line in reversed(lines):
+                    line = line.strip()
+                    if line.startswith("{") and line.endswith("}"):
+                        try:
+                            json.loads(line)
+                            json_line = line
+                            break
+                        except json.JSONDecodeError:
+                            continue
+
+                if not json_line:
+                    return {
+                        "status": "error",
+                        "result": None,
+                        "traceback": f"No JSON output found. Output: {stdout[:1000]}",
+                        "execution_time_ms": execution_time_ms,
+                    }
+
+                result = json.loads(json_line)
                 return {
                     "status": "success",
                     "result": result.get("result"),
                     "traceback": result.get("traceback"),
+                    "pending_calls": result.get("pending_calls", []),
                     "execution_time_ms": execution_time_ms,
                 }
             except json.JSONDecodeError as e:

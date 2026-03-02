@@ -525,6 +525,37 @@ async def handle_execute(
             code, namespace=effective_namespace, timeout_secs=timeout_secs
         )
 
+        # Process pending tool calls from sandbox execution
+        pending_calls = result.get("pending_calls", [])
+        if pending_calls and _tool_executor:
+            call_results = []
+            for call in pending_calls:
+                server = call.get("server")
+                tool = call.get("tool")
+                args = call.get("args", {})
+                try:
+                    call_result = _tool_executor(server, tool, args)
+                    if asyncio.iscoroutine(call_result):
+                        call_result = await call_result
+                    call_results.append(
+                        {
+                            "server": server,
+                            "tool": tool,
+                            "status": "success",
+                            "result": call_result,
+                        }
+                    )
+                except Exception as e:
+                    call_results.append(
+                        {
+                            "server": server,
+                            "tool": tool,
+                            "status": "error",
+                            "error": str(e),
+                        }
+                    )
+            result["tool_results"] = call_results
+
         content = [{"type": "text", "text": json.dumps(result, indent=2)}]
         return {"jsonrpc": "2.0", "id": msg_id, "result": {"content": content}}
 
