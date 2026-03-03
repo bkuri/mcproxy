@@ -99,6 +99,22 @@ class _NamespaceAccessControl:
         return resolved
 
 
+class _PendingCall(dict):
+    def __init__(self, executor, server, tool, args):
+        self._executor = executor
+        self._server = server
+        self._tool = tool
+        self._args = args
+        receipt = executor(server, tool, args)
+        receipt["_awaited"] = True
+        super().__init__(receipt)
+    
+    def __await__(self):
+        async def _noop():
+            return dict(self)
+        return _noop().__await__()
+
+
 class _DynamicProxy:
     def __init__(self, server_name, namespace, access_control, tool_executor):
         self._server_name = server_name
@@ -107,10 +123,13 @@ class _DynamicProxy:
         self._tool_executor = tool_executor
     
     def __getattr__(self, tool_name):
-        async def _call(**kwargs):
-            receipt = self._tool_executor(self._server_name, tool_name, kwargs)
-            receipt["_awaited"] = True
-            return receipt
+        def _call(**kwargs):
+            return _PendingCall(
+                self._tool_executor,
+                self._server_name,
+                tool_name,
+                kwargs
+            )
         return _call
 
 
@@ -131,7 +150,7 @@ class _APIProxy:
         can_access, error = self._access_control.can_access(self._namespace, server)
         if not can_access:
             raise PermissionError(error)
-        return self._tool_executor(server, tool, args)
+        return _PendingCall(self._tool_executor, server, tool, args)
     
     def manifest(self):
         allowed = self._access_control._resolve_allowed_servers(self._namespace)

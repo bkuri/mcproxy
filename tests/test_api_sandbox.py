@@ -768,3 +768,18 @@ async def run():
         # Tool calls are collected as pending, not executed immediately
         assert len(result.get("pending_calls", [])) == 1
         assert result["pending_calls"][0]["server"] == "playwright"
+
+    def test_execute_sync_call_works(self, sandbox_manifest: SandboxManifest):
+        """Execute should work with sync calls (without async/await)."""
+        executor = SandboxExecutor(sandbox_manifest, lambda *args: {"result": "ok"})
+
+        # Sync call without async/await
+        code = 'result = api.server("playwright").navigate(url="http://example.com")'
+        result = executor.execute(code, namespace="browser")
+
+        assert result["status"] == "success"
+        assert not result.get("traceback")
+        # Tool calls are still collected
+        assert len(result.get("pending_calls", [])) == 1
+        assert result["pending_calls"][0]["server"] == "playwright"
+        assert result["pending_calls"][0]["tool"] == "navigate"
