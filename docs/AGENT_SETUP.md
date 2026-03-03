@@ -20,6 +20,22 @@ Server names vary by environment. Check the "Available servers and tools" sectio
 result = api.server("wikipedia").search(query="python")
 ```
 
+### Chained Operations (Read-Modify-Write)
+
+Use `mcproxy_sequence` for file/config modifications:
+
+```python
+mcproxy_sequence(
+    read={"server": "home_assistant", "tool": "ha_read_file", "args": {"path": "config.yaml"}},
+    transform='''
+    config = json.loads(data)
+    config['new_key'] = 'new_value'
+    result = {"path": "config.yaml", "content": json.dumps(config)}
+    ''',
+    write={"server": "home_assistant", "tool": "ha_write_file"}
+)
+```
+
 ### When to Search
 
 Only use `mcproxy_search` if you need to discover tool schemas or explore available tools.

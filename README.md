@@ -212,6 +212,7 @@ This means the LLM can start with lightweight queries and fetch detailed schemas
 **MCP Tools** (exposed to clients like opencode):
 - `mcproxy_search` - Discover tools by query (namespace optional)
 - `mcproxy_execute` - Run code with tool access (namespace required)
+- `mcproxy_sequence` - Read-modify-write in single call (for file/config edits)
 
 **Sandbox API** (inside execute):
 
@@ -225,6 +226,19 @@ api.server("wikipedia").search(query="python")
 
 # WRONG: Guessing server names
 api.server("playwright").navigate(...)  # Error: may not exist in this environment
+```
+
+**For read-modify-write patterns, use `mcproxy_sequence`:**
+```python
+mcproxy_sequence(
+    read={"server": "home_assistant", "tool": "ha_read_file", "args": {"path": "config.yaml"}},
+    transform='''
+    config = json.loads(data)
+    config['new_key'] = 'new_value'
+    result = {"path": "config.yaml", "content": json.dumps(config)}
+    ''',
+    write={"server": "home_assistant", "tool": "ha_write_file"}
+)
 ```
 
 ```python

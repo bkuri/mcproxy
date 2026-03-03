@@ -293,53 +293,36 @@ results = stash.get("search_results")
 
 Namespaces control access. Use `X-Namespace: dev` header or `/sse/dev` endpoint.
 
-### Execution Model
+### Chained Operations (Read-Modify-Write)
 
-**Tool calls are deferred** - they execute AFTER your code completes, not inline.
-
-```python
-# WRONG: Results not available inline
-result = api.server("wikipedia").search(query="python")
-data = result["tool_results"]  # KeyError!
-
-# CORRECT: Results appear in response after execution
-# Your code:
-result = api.server("wikipedia").search(query="python")
-print(result)  # Shows pending call info
-# Response will include: {"tool_results": [...]}
-```
-
-For chained operations (read → modify → write), use separate `mcproxy_execute` calls.
-
-### Sequence Tool (Read-Transform-Write)
-
-For read-modify-write operations, use `mcproxy_sequence` instead of multiple `mcproxy_execute` calls:
+**Use `sequence` for read-modify-write patterns** - single tool call, no splitting needed:
 
 ```python
-# Single tool call for read-transform-write
 mcproxy_sequence(
-    read={
-        "server": "home_assistant",
-        "tool": "ha_read_file",
-        "args": {"path": ".storage/lovelace.dashboard_entrance"}
-    },
+    read={"server": "home_assistant", "tool": "ha_read_file", "args": {"path": "config.yaml"}},
     transform='''
-    dashboard = json.loads(data)
-    dashboard['views'][0]['title'] = "New Title"
-    result = {"path": ".storage/lovelace.dashboard_entrance", "content": json.dumps(dashboard)}
+    config = json.loads(data)
+    config['new_key'] = 'new_value'
+    result = {"path": "config.yaml", "content": json.dumps(config)}
     ''',
-    write={
-        "server": "home_assistant",
-        "tool": "ha_write_file"
-    }
+    write={"server": "home_assistant", "tool": "ha_write_file"}
 )
 ```
 
-**Transform Rules:**
-- `data` contains the read result (extracted from tool_results)
-- Must set `result` variable with complete write args dict
+**Transform rules:**
+- `data` contains read result
+- Must set `result` variable with write args
 - Available: `json`, `re`, `sys`, `stash`
-- Transform is Python code (statement block, not just expression)
+
+### Execution Model (Single Operations)
+
+For single operations, use `execute` directly:
+
+```python
+api.server("wikipedia").search(query="python")
+```
+
+Results appear in the response's `tool_results` field after execution.
 
 **Common Patterns:**
 
