@@ -431,7 +431,7 @@ _error = None
 try:
     import asyncio
     import re
-    local_vars = {{"__builtins__": __builtins__, "api": api, "stash": stash, "asyncio": asyncio, "forge": forge}}
+    local_vars = {{"__builtins__": __builtins__, "api": api, "stash": stash, "asyncio": asyncio, "forge": forge, "json": json, "re": re, "sys": sys}}
     exec({repr(user_code)}, local_vars, local_vars)
     if "run" in local_vars and callable(local_vars["run"]):
         run_func = local_vars["run"]

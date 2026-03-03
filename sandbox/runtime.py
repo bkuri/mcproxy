@@ -109,6 +109,15 @@ class _PendingCall(dict):
         receipt["_awaited"] = True
         super().__init__(receipt)
     
+    def __getitem__(self, key):
+        if key == "tool_results":
+            raise KeyError(
+                "tool_results not available during execution. "
+                "Tool calls are executed AFTER your code completes. "
+                "Access results from the response's 'tool_results' field, not inline."
+            )
+        return super().__getitem__(key)
+    
     def __await__(self):
         async def _noop():
             return dict(self)

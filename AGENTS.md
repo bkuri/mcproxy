@@ -293,6 +293,37 @@ results = stash.get("search_results")
 
 Namespaces control access. Use `X-Namespace: dev` header or `/sse/dev` endpoint.
 
+### Execution Model
+
+**Tool calls are deferred** - they execute AFTER your code completes, not inline.
+
+```python
+# WRONG: Results not available inline
+result = api.server("wikipedia").search(query="python")
+data = result["tool_results"]  # KeyError!
+
+# CORRECT: Results appear in response after execution
+# Your code:
+result = api.server("wikipedia").search(query="python")
+print(result)  # Shows pending call info
+# Response will include: {"tool_results": [...]}
+```
+
+For chained operations (read → modify → write), use separate `mcproxy_execute` calls.
+
+### Available Imports
+
+These modules are available without importing:
+- `json` - JSON parsing
+- `re` - Regular expressions
+- `sys` - System module
+- `asyncio` - Async utilities
+
+```python
+# Direct usage (no import needed)
+data = json.loads('{"key": "value"}')
+```
+
 ## Issue Tracking
 
 This project uses **bd (beads)** for issue tracking.
