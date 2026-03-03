@@ -311,6 +311,65 @@ print(result)  # Shows pending call info
 
 For chained operations (read → modify → write), use separate `mcproxy_execute` calls.
 
+### Sequence Tool (Read-Transform-Write)
+
+For read-modify-write operations, use `mcproxy_sequence` instead of multiple `mcproxy_execute` calls:
+
+```python
+# Single tool call for read-transform-write
+mcproxy_sequence(
+    read={
+        "server": "home_assistant",
+        "tool": "ha_read_file",
+        "args": {"path": ".storage/lovelace.dashboard_entrance"}
+    },
+    transform='''
+    dashboard = json.loads(data)
+    dashboard['views'][0]['title'] = "New Title"
+    result = {"path": ".storage/lovelace.dashboard_entrance", "content": json.dumps(dashboard)}
+    ''',
+    write={
+        "server": "home_assistant",
+        "tool": "ha_write_file"
+    }
+)
+```
+
+**Transform Rules:**
+- `data` contains the read result (extracted from tool_results)
+- Must set `result` variable with complete write args dict
+- Available: `json`, `re`, `sys`, `stash`
+- Transform is Python code (statement block, not just expression)
+
+**Common Patterns:**
+
+```python
+# JSON config modification
+transform='''
+config = json.loads(data)
+config['new_key'] = 'new_value'
+result = {"path": "config.yaml", "content": json.dumps(config)}
+'''
+
+# Using stash for stateful transforms
+transform='''
+count = stash.get("call_count", 0) + 1
+stash.put("call_count", count)
+result = {"value": str(count)}
+'''
+
+# Complex multi-step transform
+transform='''
+import re
+lines = data.split('\\n')
+filtered = [l for l in lines if not re.match(r'^#', l)]
+result = {"content": '\\n'.join(filtered)}
+'''
+```
+
+**Error Handling:**
+Each step (read, transform, write) can fail independently. Errors include `step` field indicating where failure occurred.
+
 ### Available Imports
 
 These modules are available without importing:
