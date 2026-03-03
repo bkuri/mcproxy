@@ -159,13 +159,16 @@ def generate_typescript_definitions(manifest: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def generate_compact_instructions(manifest: Dict[str, Any]) -> str:
+def generate_compact_instructions(
+    manifest: Dict[str, Any], detailed: bool = False
+) -> str:
     """Generate compact instructions with TypeScript-style type hints.
 
     This is a middle ground: TypeScript syntax but more compact than full definitions.
 
     Args:
         manifest: Manifest dictionary
+        detailed: If True, include parameter signatures for all tools
 
     Returns:
         Compact instruction string
@@ -188,19 +191,41 @@ def generate_compact_instructions(manifest: Dict[str, Any]) -> str:
     # If tools_by_server is empty, fall back to showing server names
     if tools_by_server:
         for server_name, tools in sorted(tools_by_server.items()):
-            # Tools might be objects with 'name' field or just strings
-            if tools and isinstance(tools[0], dict):
-                tool_names = [
-                    t.get("name", "") for t in tools[:5]
-                ]  # Show first 5 tools
-            else:
-                tool_names = [
-                    str(t) for t in tools[:5]
-                ]  # Fallback to string conversion
+            if detailed:
+                lines.append(f"  {server_name}:")
+                # Show all tools with parameter signatures
+                if tools:
+                    if isinstance(tools[0], dict):
+                        for tool in tools:
+                            tool_name = tool.get("name", "")
+                            input_schema = tool.get("inputSchema", {})
 
-            if len(tools) > 5:
-                tool_names.append(f"... +{len(tools) - 5} more")
-            lines.append(f"  {server_name}: {', '.join(tool_names)}")
+                            properties = input_schema.get("properties", {})
+                            required = set(input_schema.get("required", []))
+
+                            params = []
+                            for prop_name, prop_schema in properties.items():
+                                prop_type = json_schema_to_ts(prop_schema, 0)
+                                optional = "?" if prop_name not in required else ""
+                                # Simplify complex types for display
+                                if "|" in prop_type and len(prop_type) > 30:
+                                    prop_type = (
+                                        prop_type.split("|")[0].strip().strip('"')
+                                    )
+                                params.append(f"{prop_name}{optional}: {prop_type}")
+
+                            params_str = ", ".join(params) if params else ""
+                            lines.append(f"    {tool_name}({params_str})")
+                    else:
+                        for tool in tools:
+                            lines.append(f"    {tool}")
+            else:
+                # Compact mode: just tool names
+                if tools and isinstance(tools[0], dict):
+                    tool_names = [t.get("name", "") for t in tools]
+                else:
+                    tool_names = [str(t) for t in tools]
+                lines.append(f"  {server_name}: {', '.join(tool_names)}")
     else:
         # Fallback: show server names with tool counts
         for server_name, server_info in sorted(servers.items()):
@@ -248,6 +273,8 @@ def generate_compact_instructions(manifest: Dict[str, Any]) -> str:
             "Note: Hyphenated tool names use underscores (auto-converted):",
             "  get-coins → get_coins()",
             "  get-coin-by-id → get_coin_by_id()",
+            "",
+            "For parameter details: mcproxy_search(query='tool_name', max_depth=3)",
             "",
             "Utilities:",
             "  api.manifest() - Get full tool details (optional)",
