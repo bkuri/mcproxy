@@ -295,9 +295,24 @@ Namespaces control access. Use `X-Namespace: dev` header or `/sse/dev` endpoint.
 
 ### Chained Operations (Read-Modify-Write)
 
-**Use `sequence` for read-modify-write patterns** - single tool call, no splitting needed:
+**Use `sequence` for any tool operation:**
 
 ```python
+# Single read (write optional)
+mcproxy_sequence(
+    read={"server": "wikipedia", "tool": "search", "args": {"query": "python"}}
+)
+
+# Read + transform (write optional)
+mcproxy_sequence(
+    read={"server": "home_assistant", "tool": "ha_read_file", "args": {"path": "config.yaml"}},
+    transform='''
+    config = json.loads(data)
+    result = config["some_key"]
+    '''
+)
+
+# Read-modify-write
 mcproxy_sequence(
     read={"server": "home_assistant", "tool": "ha_read_file", "args": {"path": "config.yaml"}},
     transform='''

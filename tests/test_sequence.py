@@ -398,10 +398,12 @@ class TestSequenceValidation:
 
     @pytest.mark.asyncio
     async def test_sequence_missing_transform_param(self):
-        """Missing transform parameter should return error."""
+        """Missing transform should pass data through unchanged."""
+        mock_executor = MagicMock(return_value={"content": "original"})
+
         params = {
             "read": {"server": "test", "tool": "read"},
-            "write": {"server": "test", "tool": "write"},
+            # No transform
         }
 
         result = await handle_sequence(
@@ -411,32 +413,14 @@ class TestSequenceValidation:
             session_id=None,
             sandbox_executor=None,
             session_manager=None,
-            tool_executor=None,
+            tool_executor=mock_executor,
         )
 
-        assert "error" in result
-        assert result["error"]["code"] == -32602
-
-    @pytest.mark.asyncio
-    async def test_sequence_missing_write_param(self):
-        """Missing write parameter should return error."""
-        params = {
-            "read": {"server": "test", "tool": "read"},
-            "transform": 'result = {"content": data}',
-        }
-
-        result = await handle_sequence(
-            msg_id=10,
-            params=params,
-            connection_namespace="browser",
-            session_id=None,
-            sandbox_executor=None,
-            session_manager=None,
-            tool_executor=None,
-        )
-
-        assert "error" in result
-        assert result["error"]["code"] == -32602
+        assert "result" in result
+        content = json.loads(result["result"]["content"][0]["text"])
+        assert "error" not in content
+        assert content["read_result"]["content"] == "original"
+        assert content["transform_result"] == "original"  # Passed through
 
     @pytest.mark.asyncio
     async def test_sequence_missing_namespace(self):

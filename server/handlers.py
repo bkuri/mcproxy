@@ -77,9 +77,9 @@ META_TOOLS = [
     },
     {
         "name": "sequence",
-        "description": "Execute read-transform-write pattern in a single call. "
-        "Useful for file modifications, config updates, and any chained operations. "
-        "Transform receives 'data' from read result and must set 'result' variable with write args.",
+        "description": "Execute read and optional transform/write in a single call. "
+        "Use for any tool operation: single reads, file modifications, config updates. "
+        "Write optional - omit for read-only operations.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -97,11 +97,13 @@ META_TOOLS = [
                     "type": "string",
                     "description": "Python code to transform data. "
                     "Receives 'data' from read result. Must set 'result' variable with write args. "
-                    "Available: json, re, sys, stash",
+                    "Available: json, re, sys, stash. "
+                    "Optional for simple read operations (data returned as-is).",
                 },
                 "write": {
                     "type": "object",
-                    "description": "Write operation specification",
+                    "description": "Write operation specification (optional). "
+                    "Omit for read-only operations.",
                     "properties": {
                         "server": {"type": "string"},
                         "tool": {"type": "string"},
@@ -113,7 +115,7 @@ META_TOOLS = [
                     "description": "Timeout in seconds (default: 30)",
                 },
             },
-            "required": ["read", "transform", "write"],
+            "required": ["read"],
         },
     },
 ]
@@ -469,21 +471,6 @@ async def handle_sequence(
             "id": msg_id,
             "error": {"code": -32602, "message": "Missing required parameter: read"},
         }
-    if not transform_code:
-        return {
-            "jsonrpc": "2.0",
-            "id": msg_id,
-            "error": {
-                "code": -32602,
-                "message": "Missing required parameter: transform",
-            },
-        }
-    if not write_spec:
-        return {
-            "jsonrpc": "2.0",
-            "id": msg_id,
-            "error": {"code": -32602, "message": "Missing required parameter: write"},
-        }
 
     if tool_executor is None:
         return {
@@ -530,62 +517,71 @@ async def handle_sequence(
         content = [{"type": "text", "text": json.dumps(result, indent=2)}]
         return {"jsonrpc": "2.0", "id": msg_id, "result": {"content": content}}
 
-    try:
-        data = _extract_data_from_tool_result(read_result_raw)
+    # Extract data from read result
+    data = _extract_data_from_tool_result(read_result_raw)
 
-        local_vars: Dict[str, Any] = {
-            "data": data,
-            "json": json,
-            "re": re,
-            "sys": sys,
-            "result": None,
-        }
-
-        if session is not None:
-            local_vars["stash"] = _SyncStashWrapper(session)
-
-        exec(transform_code, {"__builtins__": __builtins__}, local_vars)
-
-        transform_result = local_vars.get("result")
-        if transform_result is None:
-            raise ValueError("Transform code must set 'result' variable")
-
-        result["transform_result"] = transform_result
-        logger.debug(f"[SEQUENCE] TRANSFORM: completed")
-
-    except Exception as e:
-        tb = traceback_module.format_exc()
-        logger.error(f"[SEQUENCE_ERROR] TRANSFORM step failed: {e}")
-        result["error"] = {"step": "transform", "message": str(e), "traceback": tb}
-        content = [{"type": "text", "text": json.dumps(result, indent=2)}]
-        return {"jsonrpc": "2.0", "id": msg_id, "result": {"content": content}}
-
-    try:
-        write_server = write_spec.get("server")
-        write_tool = write_spec.get("tool")
-
-        if not write_server or not write_tool:
-            return {
-                "jsonrpc": "2.0",
-                "id": msg_id,
-                "error": {
-                    "code": -32602,
-                    "message": "Write spec requires 'server' and 'tool' fields",
-                },
+    # TRANSFORM step (optional)
+    transform_result = data
+    if transform_code:
+        try:
+            local_vars: Dict[str, Any] = {
+                "data": data,
+                "json": json,
+                "re": re,
+                "sys": sys,
+                "result": None,
             }
 
-        logger.debug(f"[SEQUENCE] WRITE: server={write_server} tool={write_tool}")
-        write_result_raw = tool_executor(write_server, write_tool, transform_result)
-        if asyncio.iscoroutine(write_result_raw):
-            write_result_raw = await write_result_raw
+            if session is not None:
+                local_vars["stash"] = _SyncStashWrapper(session)
 
-        result["write_result"] = write_result_raw
+            exec(transform_code, {"__builtins__": __builtins__}, local_vars)
 
-    except Exception as e:
-        logger.error(f"[SEQUENCE_ERROR] WRITE step failed: {e}")
-        result["error"] = {"step": "write", "message": str(e)}
-        content = [{"type": "text", "text": json.dumps(result, indent=2)}]
-        return {"jsonrpc": "2.0", "id": msg_id, "result": {"content": content}}
+            transform_result = local_vars.get("result")
+            if transform_result is None:
+                raise ValueError("Transform code must set 'result' variable")
+
+            result["transform_result"] = transform_result
+            logger.debug(f"[SEQUENCE] TRANSFORM: completed")
+
+        except Exception as e:
+            tb = traceback_module.format_exc()
+            logger.error(f"[SEQUENCE_ERROR] TRANSFORM step failed: {e}")
+            result["error"] = {"step": "transform", "message": str(e), "traceback": tb}
+            content = [{"type": "text", "text": json.dumps(result, indent=2)}]
+            return {"jsonrpc": "2.0", "id": msg_id, "result": {"content": content}}
+    else:
+        # No transform - use data directly
+        result["transform_result"] = data
+
+    # WRITE step (optional - skip if no write spec)
+    if write_spec:
+        try:
+            write_server = write_spec.get("server")
+            write_tool = write_spec.get("tool")
+
+            if not write_server or not write_tool:
+                return {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "error": {
+                        "code": -32602,
+                        "message": "Write spec requires 'server' and 'tool' fields",
+                    },
+                }
+
+            logger.debug(f"[SEQUENCE] WRITE: server={write_server} tool={write_tool}")
+            write_result_raw = tool_executor(write_server, write_tool, transform_result)
+            if asyncio.iscoroutine(write_result_raw):
+                write_result_raw = await write_result_raw
+
+            result["write_result"] = write_result_raw
+
+        except Exception as e:
+            logger.error(f"[SEQUENCE_ERROR] WRITE step failed: {e}")
+            result["error"] = {"step": "write", "message": str(e)}
+            content = [{"type": "text", "text": json.dumps(result, indent=2)}]
+            return {"jsonrpc": "2.0", "id": msg_id, "result": {"content": content}}
 
     content = [{"type": "text", "text": json.dumps(result, indent=2)}]
     return {"jsonrpc": "2.0", "id": msg_id, "result": {"content": content}}
