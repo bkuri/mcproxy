@@ -51,8 +51,8 @@ META_TOOLS = [
     {
         "name": "execute",
         "description": "Execute Python code with tool access via api.server('name').tool(args). "
-        "Example: api.server('perplexity_sonar').perplexity_search_web(query='news', search_recency_filter='day'). "
-        "No need to search first for known tools - call this directly.",
+        "CRITICAL: Only use servers listed in the MCP instructions (Available servers section). "
+        "Do NOT guess server names - they vary by environment.",
         "inputSchema": {
             "type": "object",
             "properties": {

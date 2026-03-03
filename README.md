@@ -214,10 +214,23 @@ This means the LLM can start with lightweight queries and fetch detailed schemas
 - `mcproxy_execute` - Run code with tool access (namespace required)
 
 **Sandbox API** (inside execute):
+
+**⚠️ IMPORTANT: Use only servers from the MCP instructions**
+
+Server names vary by environment. Check the "Available servers and tools" section in the MCP instructions when you connect. Do NOT guess names like `playwright` or `pure_md`.
+
 ```python
-# Discover available tools
-api.manifest()                          # All servers/tools
-api.manifest().servers                  # Server names only
+# CORRECT: Use servers from the instructions
+api.server("wikipedia").search(query="python")
+
+# WRONG: Guessing server names
+api.server("playwright").navigate(...)  # Error: may not exist in this environment
+```
+
+```python
+# Optional: Get full tool details
+api.manifest()                          # All servers/tools with schemas
+api.manifest().servers                  # Server configs with tool definitions
 
 # Call tools via fluent proxy
 api.server("github").repos.list(owner="octocat")

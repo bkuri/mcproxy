@@ -262,14 +262,23 @@ When connected via MCP client (e.g., opencode), tools appear as:
 
 ### Usage in Execute Sandbox
 
-```python
-# Discover available tools
-api.manifest()                          # All servers/tools
-api.manifest().servers                  # Server names only
+**⚠️ IMPORTANT: Use only servers from the MCP instructions**
 
-# Call tools
-api.server("github").repos.list(owner="octocat")
+Server names vary by environment. Check the "Available servers and tools" section in the MCP instructions when you connect. Do NOT guess names like `playwright` or `pure_md`.
+
+```python
+# CORRECT: Use servers from the instructions
 api.server("wikipedia").search(query="python")
+api.server("sequential_thinking").sequentialthinking(thought="...")
+
+# WRONG: Guessing server names
+api.server("playwright").navigate(...)  # Error: may not exist in this environment
+```
+
+```python
+# Optional: Get full tool details
+api.manifest()                          # All servers/tools with schemas
+api.manifest().servers                  # Server configs with tool definitions
 
 # Parallel execution
 results = await forge.parallel([

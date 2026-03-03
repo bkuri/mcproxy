@@ -9,40 +9,20 @@ Add this to your `CLAUDE.md` or `AGENTS.md` file:
 
 MCProxy provides MCP tools via the v2 Code Mode API.
 
-**IMPORTANT: Skip search for known tools!**
+**⚠️ CRITICAL: Use only servers from the MCP instructions**
 
-Most of the time you can call `mcproxy_execute` directly. The available servers are listed in the MCP instructions.
+Server names vary by environment. Check the "Available servers and tools" section in the MCP instructions when you connect. Do NOT guess names like `playwright` or `pure_md`.
 
 ### Direct Execution (Recommended)
 
 ```python
-# Call execute directly - no search needed!
-mcproxy_execute(code='''
-result = api.server("perplexity_sonar").perplexity_search_web(
-    query="latest news",
-    search_recency_filter="day"
-)
-''')
+# CORRECT: Use servers from the instructions
+result = api.server("wikipedia").search(query="python")
 ```
-
-### Common Servers
-
-- `perplexity_sonar` - Web search
-- `wikipedia` - Wikipedia articles
-- `playwright` - Browser automation
-- `think_tool` - Simple reasoning
-- `sequential_thinking` - Multi-step reasoning
-- `fear_greed_index` - Market sentiment
-- `coincap` - Crypto prices
-- `asset_price` - Stock prices
-- `youtube` - Video subtitles
-- `llms_txt` - Documentation
-- `pure_md` - Web scraping
-- `tmux` - Terminal sessions
 
 ### When to Search
 
-Only use `mcproxy_search` if you truly don't know which server/tool to use.
+Only use `mcproxy_search` if you need to discover tool schemas or explore available tools.
 
 ### Hot-Reload (No Restart Needed)
 

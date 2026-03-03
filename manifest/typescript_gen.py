@@ -176,6 +176,10 @@ def generate_compact_instructions(manifest: Dict[str, Any]) -> str:
     lines = [
         "MCProxy v2 Code Mode API",
         "",
+        "⚠️ CRITICAL: Use only the servers listed below!",
+        "Server names vary by environment. Do NOT guess names like 'playwright' or 'pure_md'.",
+        "The servers available in THIS environment are listed under 'Available servers'.",
+        "",
         "Usage: api.server('name').tool(args)",
         "",
         "Available servers and tools:",
@@ -203,24 +207,53 @@ def generate_compact_instructions(manifest: Dict[str, Any]) -> str:
             tool_count = server_info.get("tool_count", 0)
             lines.append(f"  {server_name}: {tool_count} tools")
 
+    # Generate dynamic examples based on available servers
+    lines.append("")
+    lines.append("Examples:")
+
+    # Show 1-2 examples from available servers
+    example_count = 0
+    for server_name, tools in sorted(tools_by_server.items()):
+        if example_count >= 2:
+            break
+        if tools and isinstance(tools[0], dict):
+            first_tool = tools[0]
+            tool_name = first_tool.get("name", "tool")
+            input_schema = first_tool.get("inputSchema", {})
+            properties = input_schema.get("properties", {})
+            required = set(input_schema.get("required", []))
+
+            # Build parameter hint
+            params = []
+            for prop_name, prop_schema in list(properties.items())[
+                :2
+            ]:  # Show first 2 params
+                prop_type = json_schema_to_ts(prop_schema, 0)
+                optional = "?" if prop_name not in required else ""
+                params.append(f"{prop_name}{optional}: {prop_type}")
+
+            params_str = ", ".join(params) if params else ""
+            lines.append(
+                f'  api.server("{server_name}").{tool_name}({params_str}): Promise<any>'
+            )
+            example_count += 1
+
+    # Fallback if no servers with tools
+    if example_count == 0:
+        lines.append('  api.server("server_name").tool_name(param: type): Promise<any>')
+
     lines.extend(
         [
-            "",
-            "Common examples:",
-            '  api.server("perplexity_sonar").perplexity_search_web(query: string, search_recency_filter?: "day"|"week"): Promise<any>',
-            '  api.server("wikipedia").search(query: string): Promise<any>',
-            '  api.server("playwright").playwright_navigate(url: string): Promise<any>',
-            '  api.server("think_tool").think(thought: string): Promise<any>',
             "",
             "Note: Hyphenated tool names use underscores (auto-converted):",
             "  get-coins → get_coins()",
             "  get-coin-by-id → get_coin_by_id()",
             "",
             "Utilities:",
-            "  api.manifest(): any - Get full tool list",
-            "  stash.put(key: string, value: any, ttl?: number): void",
-            "  stash.get(key: string): any",
-            "  await forge.parallel([lambda: api.server('x').tool(), ...])",
+            "  api.manifest() - Get full tool details (optional)",
+            "  stash.put(key, value, ttl?) - Cache data across calls",
+            "  stash.get(key) - Retrieve cached data",
+            "  await forge.parallel([...]) - Run calls concurrently",
         ]
     )
 
