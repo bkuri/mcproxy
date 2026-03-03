@@ -107,8 +107,10 @@ class _DynamicProxy:
         self._tool_executor = tool_executor
     
     def __getattr__(self, tool_name):
-        def _call(**kwargs):
-            return self._tool_executor(self._server_name, tool_name, kwargs)
+        async def _call(**kwargs):
+            receipt = self._tool_executor(self._server_name, tool_name, kwargs)
+            receipt["_awaited"] = True
+            return receipt
         return _call
 
 

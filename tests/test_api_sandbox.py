@@ -725,7 +725,10 @@ class TestExecuteAccessControl:
         executor = SandboxExecutor(sandbox_manifest, lambda *args: {"result": "ok"})
 
         # browser namespace CAN access playwright
-        code = 'result = api.server("playwright").navigate(url="http://example.com")'
+        code = """
+async def run():
+    result = await api.server("playwright").navigate(url="http://example.com")
+"""
         result = executor.execute(code, namespace="browser")
 
         assert result["status"] == "success"
@@ -754,7 +757,10 @@ class TestExecuteAccessControl:
         executor = SandboxExecutor(sandbox_manifest, lambda *args: {"result": "ok"})
 
         # privileged extends browser, so can access playwright
-        code = 'result = api.server("playwright").navigate(url="http://example.com")'
+        code = """
+async def run():
+    result = await api.server("playwright").navigate(url="http://example.com")
+"""
         result = executor.execute(code, namespace="privileged")
 
         assert result["status"] == "success"

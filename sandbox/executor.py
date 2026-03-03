@@ -447,7 +447,7 @@ except NameError as e:
     error_str = str(_error)
     
     # Pattern 1: server__tool() direct call
-    match = re.search(r"name '([\w]+__[\w]+)' is not defined", error_str)
+    match = re.search(r"name '([\\w]+__[\\w]+)' is not defined", error_str)
     if match:
         tool_name = match.group(1)
         parts = tool_name.split("__", 1)
@@ -455,23 +455,29 @@ except NameError as e:
             server, tool = parts
             _error = f"""NameError: '{{tool_name}}' is not a function.
 
-Use the 'api' object to call tools:
+Use 'await api.server()' in an async run() function:
 
-    result = api.server("{{server}}").{{tool}}(...)
+    async def run():
+        result = await api.server("{{server}}").{{tool}}(...)
+    
+    # Results appear in tool_results field of response
 
 Available: api.manifest()"""
     elif "call_tool" in error_str and "is not defined" in error_str:
         # Pattern 2: call_tool without api prefix
         _error = """NameError: 'call_tool' is not defined.
 
-Use 'api.call_tool' instead:
+Use 'await api.call_tool' in an async run() function:
 
-    result = api.call_tool("server", "tool", {{"arg": "value"}})"""
+    async def run():
+        result = await api.call_tool("server", "tool", {{"arg": "value"}})"""
     elif re.search(r"name '(server|forge|manifest)' is not defined", error_str):
         # Pattern 3: Using 'server' or 'forge' directly
         _error = """NameError: Use the 'api' object to access tools.
 
-    api.server("name").tool(args)
+    async def run():
+        result = await api.server("name").tool(args)
+    
     api.manifest()"""
 except Exception as e:
     import traceback
@@ -483,6 +489,14 @@ output = {{
     "pending_calls": _executor.get_pending(),
     "stash_updates": stash._get_updates(),
 }}
+
+# Add warning if pending calls exist without async pattern
+if output["pending_calls"] and _error is None:
+    output["warning"] = (
+        "Tool calls queued but results not available in code. "
+        "Use 'async def run():' with 'await' to call tools. "
+        "Results appear in tool_results field of response."
+    )
 
 print(json.dumps(output))
 '''
