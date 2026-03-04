@@ -280,10 +280,13 @@ def generate_compact_instructions(
             "",
             "For parameter details: mcproxy_search(query='tool_name', max_depth=3)",
             "",
+            "Note: Each execute call is isolated (fresh subprocess).",
+            "Use stash for cross-call state:",
+            "  stash.put(key, value, ttl?) - Save data",
+            "  stash.get(key) - Retrieve data",
+            "",
             "Utilities:",
-            "  api.manifest() - Get full tool details (optional)",
-            "  stash.put(key, value, ttl?) - Cache data across calls",
-            "  stash.get(key) - Retrieve cached data",
+            "  api.manifest() - Get full tool details",
             "  await forge.parallel([...]) - Run calls concurrently",
         ]
     )

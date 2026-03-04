@@ -358,49 +358,17 @@ api.server("wikipedia").search(query="python")
 
 Results appear in the response's `tool_results` field after execution.
 
-**Common Patterns:**
+**Note: Each `execute` call is isolated** - variables don't persist between calls (fresh subprocess each time). Use `stash` for cross-call state:
 
 ```python
-# JSON config modification
-transform='''
-config = json.loads(data)
-config['new_key'] = 'new_value'
-result = {"path": "config.yaml", "content": json.dumps(config)}
-'''
+# First call - save data
+stash.put("previous_result", data, ttl=3600)
 
-# Using stash for stateful transforms
-transform='''
-count = stash.get("call_count", 0) + 1
-stash.put("call_count", count)
-result = {"value": str(count)}
-'''
-
-# Complex multi-step transform
-transform='''
-import re
-lines = data.split('\\n')
-filtered = [l for l in lines if not re.match(r'^#', l)]
-result = {"content": '\\n'.join(filtered)}
-'''
+# Later call - retrieve data
+previous = stash.get("previous_result")
 ```
 
-**Error Handling:**
-Each step (read, transform, write) can fail independently. Errors include `step` field indicating where failure occurred.
-
-### Available Imports
-
-These modules are available without importing:
-- `json` - JSON parsing
-- `re` - Regular expressions
-- `sys` - System module
-- `asyncio` - Async utilities
-
-```python
-# Direct usage (no import needed)
-data = json.loads('{"key": "value"}')
-```
-
-## Issue Tracking
+### Chained Operations (Read-Modify-Write)
 
 This project uses **bd (beads)** for issue tracking.
 Run `bd prime` for workflow context, or install hooks (`bd hooks install`) for auto-injection.
