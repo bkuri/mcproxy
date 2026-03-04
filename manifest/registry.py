@@ -117,7 +117,7 @@ class CapabilityRegistry:
         if namespace is None:
             return list(self._manifest.get("servers", {}).keys())
 
-        resolved_servers, error = self.resolve_endpoint_to_servers(namespace)
+        resolved_servers, error = self.resolve_namespace_to_servers(namespace)
         if error:
             logger.warning(f"Namespace/group resolution failed: {error}")
             return []
@@ -138,7 +138,7 @@ class CapabilityRegistry:
             return []
 
         if namespace is not None:
-            allowed_servers, error = self.resolve_endpoint_to_servers(namespace)
+            allowed_servers, error = self.resolve_namespace_to_servers(namespace)
             if error:
                 logger.warning(f"Namespace/group resolution failed: {error}")
                 return []
@@ -436,10 +436,10 @@ class CapabilityRegistry:
             return ns_def.get("isolated", False)
         return False
 
-    def resolve_endpoint_to_servers(
+    def resolve_namespace_to_servers(
         self, endpoint_name: Optional[str]
     ) -> tuple[list[str], Optional[str]]:
-        """Resolve endpoint name (namespace or group) to servers.
+        """Resolve namespace or group name to servers.
 
         Args:
             endpoint_name: Namespace name, group name, or None for default

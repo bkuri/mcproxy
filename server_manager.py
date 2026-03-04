@@ -13,6 +13,8 @@ from logging_config import get_logger
 
 logger = get_logger(__name__)
 
+LONG_RUNNING_TOOL_TIMEOUT_SECS = 350  # 5+ minutes for tools like backtests
+
 
 class ServerProcess:
     """Manages a single MCP server process."""
@@ -41,7 +43,7 @@ class ServerProcess:
         self.timeout = timeout
         self.process: Optional[asyncio.subprocess.Process] = None
         self.tools: List[Dict[str, Any]] = []
-        self._lock = asyncio.Lock()
+        self._stdio_lock = asyncio.Lock()
         self._config = None  # Store config for restart
         self._restart_count = 0
         self._max_restarts = 3
@@ -78,7 +80,7 @@ class ServerProcess:
             )
 
             # Use lock for initialization sequence
-            async with self._lock:
+            async with self._stdio_lock:
                 # Send initialize request
                 init_request = {
                     "jsonrpc": "2.0",
@@ -202,7 +204,7 @@ class ServerProcess:
             raise RuntimeError(f"Server '{self.name}' is not running")
 
         # Serialize access to prevent race conditions on stdin/stdout
-        async with self._lock:
+        async with self._stdio_lock:
             request = {
                 "jsonrpc": "2.0",
                 "id": 2,
@@ -213,9 +215,7 @@ class ServerProcess:
             logger.debug(f"[CALL_TOOL_SEND] Sending request to {self.name}")
             await self._send_message(request)
 
-            # Use longer timeout for long-running tools like backtest (300s)
-            # Standard tools complete in <5s, backtests can take 2-5 minutes
-            timeout_seconds = 350  # 5+ minutes to allow full async polling
+            timeout_seconds = LONG_RUNNING_TOOL_TIMEOUT_SECS
             logger.debug(
                 f"[CALL_TOOL_WAIT] Waiting for response from {self.name} (timeout={timeout_seconds}s)"
             )
@@ -264,7 +264,7 @@ class ServerProcess:
 
     async def _discover_tools(self) -> None:
         """Discover available tools from the server."""
-        async with self._lock:
+        async with self._stdio_lock:
             request = {"jsonrpc": "2.0", "id": 3, "method": "tools/list"}
 
             await self._send_message(request)

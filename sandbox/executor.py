@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from code_validator import validate_code_for_dangerous_patterns
 from logging_config import get_logger
-from sandbox.access_control import NamespaceAccessControl, SandboxManifest
+from sandbox.access_control import NamespaceAccessControl, AccessControlConfig
 from sandbox.runtime import RUNTIME_CLASSES
 from sandbox.security import (
     BLOCKED_BUILTINS,
@@ -36,7 +36,7 @@ class SandboxExecutor:
 
     def __init__(
         self,
-        manifest: "SandboxManifest",
+        manifest: "AccessControlConfig",
         tool_executor: Any,
         uv_path: str = "uv",
         default_timeout_secs: int = 30,
@@ -272,7 +272,7 @@ class SandboxExecutor:
                     "status": "success",
                     "result": result.get("result"),
                     "traceback": result.get("traceback"),
-                    "pending_calls": result.get("pending_calls", []),
+                    "deferred_calls": result.get("deferred_calls", []),
                     "execution_time_ms": execution_time_ms,
                 }
             except json.JSONDecodeError as e:
@@ -359,22 +359,6 @@ class SandboxExecutor:
 
         Returns:
             Wrapped code that includes api, stash, and forge APIs
-
-        NOTE: Internal class definitions (_CapabilityRegistry, _NamespaceAccessControl,
-        _DynamicProxy, _APIProxy) are intentionally duplicated from top-level classes.
-        This is NOT a bug - the sandbox runs in a separate subprocess via `uv run`,
-        so it cannot import or reference the parent process's classes. These internal
-        classes:
-
-        1. Work with JSON-serialized manifest data (not live objects)
-        2. Include additional features needed in sandbox context (e.g., group resolution
-           in _NamespaceAccessControl which the top-level version lacks)
-        3. Use _ToolExecutor that collects pending calls instead of executing tools
-
-        The top-level classes (SandboxManifest, NamespaceAccessControl, DynamicProxy,
-        ProxyAPI) are used by the parent process for validation and setup, while the
-        internal underscore-prefixed versions are the standalone implementations that
-        run inside the sandbox subprocess.
         """
         manifest_json = json.dumps(
             {
@@ -415,7 +399,7 @@ import sys
 
 {RUNTIME_CLASSES}
 
-_executor = _ToolExecutor()
+_executor = _DeferredCallCollector()
 _manifest_data = {manifest_json}
 _manifest = _Manifest(_manifest_data)
 _registry = _CapabilityRegistry(_manifest)
@@ -486,12 +470,12 @@ except Exception as e:
 output = {{
     "result": _result,
     "traceback": _error,
-    "pending_calls": _executor.get_pending(),
+    "deferred_calls": _executor.get_deferred_calls(),
     "stash_updates": stash._get_updates(),
 }}
 
 # Add warning if pending calls exist without async pattern
-if output["pending_calls"] and _error is None:
+if output["deferred_calls"] and _error is None:
     output["warning"] = (
         "Tool calls queued but results not available in code. "
         "Use 'async def run():' with 'await' to call tools. "

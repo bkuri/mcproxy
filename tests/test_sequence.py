@@ -6,7 +6,7 @@ import pytest
 from typing import Any, Callable, Dict, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from sandbox import SandboxExecutor, SandboxManifest
+from sandbox import SandboxExecutor, AccessControlConfig
 from session_stash import SessionManager, SessionStash
 from server.handlers import handle_sequence
 
@@ -17,7 +17,7 @@ class TestSequenceBasicReadWrite:
     @pytest.mark.asyncio
     async def test_sequence_basic_read_write(
         self,
-        sandbox_manifest: SandboxManifest,
+        sandbox_manifest: AccessControlConfig,
         namespace_access_control,
     ):
         """Basic read-transform-write with string transformation."""
@@ -67,7 +67,7 @@ class TestSequenceBasicReadWrite:
     @pytest.mark.asyncio
     async def test_sequence_with_json_transform(
         self,
-        sandbox_manifest: SandboxManifest,
+        sandbox_manifest: AccessControlConfig,
         namespace_access_control,
     ):
         """Transform parses JSON, modifies, returns new args."""
@@ -125,7 +125,7 @@ result = {"content": json.dumps(config)}
     @pytest.mark.asyncio
     async def test_sequence_with_stash(
         self,
-        sandbox_manifest: SandboxManifest,
+        sandbox_manifest: AccessControlConfig,
         namespace_access_control,
     ):
         """Use stash in transform for stateful operations."""
@@ -187,7 +187,7 @@ class TestSequenceErrors:
     @pytest.mark.asyncio
     async def test_sequence_read_error(
         self,
-        sandbox_manifest: SandboxManifest,
+        sandbox_manifest: AccessControlConfig,
         namespace_access_control,
     ):
         """Read step error should return error with step='read'."""
@@ -232,7 +232,7 @@ class TestSequenceErrors:
     @pytest.mark.asyncio
     async def test_sequence_transform_error(
         self,
-        sandbox_manifest: SandboxManifest,
+        sandbox_manifest: AccessControlConfig,
         namespace_access_control,
     ):
         """Transform syntax error should return error with step='transform' and traceback."""
@@ -281,7 +281,7 @@ class TestSequenceErrors:
     @pytest.mark.asyncio
     async def test_sequence_write_error(
         self,
-        sandbox_manifest: SandboxManifest,
+        sandbox_manifest: AccessControlConfig,
         namespace_access_control,
     ):
         """Write step error should return error with step='write'."""
@@ -329,7 +329,7 @@ class TestSequenceErrors:
     @pytest.mark.asyncio
     async def test_sequence_missing_result_variable(
         self,
-        sandbox_manifest: SandboxManifest,
+        sandbox_manifest: AccessControlConfig,
         namespace_access_control,
     ):
         """Transform without setting result should return clear error."""
@@ -450,7 +450,7 @@ class TestSequenceDataExtraction:
     @pytest.mark.asyncio
     async def test_sequence_extracts_content_field(
         self,
-        sandbox_manifest: SandboxManifest,
+        sandbox_manifest: AccessControlConfig,
         namespace_access_control,
     ):
         """Transform receives 'content' field from read result."""
@@ -498,7 +498,7 @@ class TestSequenceDataExtraction:
     @pytest.mark.asyncio
     async def test_sequence_extracts_tool_results_array(
         self,
-        sandbox_manifest: SandboxManifest,
+        sandbox_manifest: AccessControlConfig,
         namespace_access_control,
     ):
         """Transform receives result.content when read returns nested structure."""

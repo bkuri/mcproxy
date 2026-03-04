@@ -4,7 +4,7 @@ import pytest
 from typing import Any, Dict, List
 
 from manifest import CapabilityRegistry
-from sandbox import SandboxManifest, NamespaceAccessControl
+from sandbox import AccessControlConfig, NamespaceAccessControl
 
 
 @pytest.fixture
@@ -136,7 +136,7 @@ def sample_manifest(
 def sandbox_manifest(
     sample_servers_tools: Dict[str, List[Dict[str, Any]]],
     sample_namespaces: Dict[str, Any],
-) -> SandboxManifest:
+) -> AccessControlConfig:
     """Sample sandbox manifest for access control testing."""
     servers = {}
     for server_name, tools in sample_servers_tools.items():
@@ -152,7 +152,7 @@ def sandbox_manifest(
         else:
             normalized_namespaces[ns_name] = ns_config
 
-    return SandboxManifest(
+    return AccessControlConfig(
         servers=servers,
         namespaces=normalized_namespaces,
     )
@@ -160,7 +160,7 @@ def sandbox_manifest(
 
 @pytest.fixture
 def namespace_access_control(
-    sandbox_manifest: SandboxManifest,
+    sandbox_manifest: AccessControlConfig,
 ) -> NamespaceAccessControl:
     """Namespace access control instance for testing."""
     return NamespaceAccessControl(sandbox_manifest)

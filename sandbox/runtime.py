@@ -4,11 +4,11 @@ These classes are injected into the sandbox subprocess as code strings.
 They cannot import from the parent process - all classes must be self-contained.
 
 The classes work with JSON-serialized manifest data (not live objects) and use
-_ToolExecutor that collects pending calls instead of executing tools directly.
+_DeferredCallCollector that collects deferred calls instead of executing tools directly.
 """
 
 RUNTIME_CLASSES = """
-class _ToolExecutor:
+class _DeferredCallCollector:
     def __init__(self):
         self._pending = []
     
@@ -16,7 +16,7 @@ class _ToolExecutor:
         self._pending.append({"server": server, "tool": tool, "args": args})
         return {"_pending_call": True, "server": server, "tool": tool, "args": args}
     
-    def get_pending(self):
+    def get_deferred_calls(self):
         return self._pending
 
 
@@ -99,7 +99,7 @@ class _NamespaceAccessControl:
         return resolved
 
 
-class _PendingCall(dict):
+class _DeferredCall(dict):
     def __init__(self, executor, server, tool, args):
         self._executor = executor
         self._server = server
@@ -133,7 +133,7 @@ class _DynamicProxy:
     
     def __getattr__(self, tool_name):
         def _call(**kwargs):
-            return _PendingCall(
+            return _DeferredCall(
                 self._tool_executor,
                 self._server_name,
                 tool_name,
@@ -159,7 +159,7 @@ class _APIProxy:
         can_access, error = self._access_control.can_access(self._namespace, server)
         if not can_access:
             raise PermissionError(error)
-        return _PendingCall(self._tool_executor, server, tool, args)
+        return _DeferredCall(self._tool_executor, server, tool, args)
     
     def manifest(self):
         allowed = self._access_control._resolve_allowed_servers(self._namespace)

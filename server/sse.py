@@ -24,7 +24,7 @@ def validate_namespace(namespace: str, capability_registry: Optional[Any]) -> bo
     """
     if capability_registry is None:
         return False
-    servers, error = capability_registry.resolve_endpoint_to_servers(namespace)
+    servers, error = capability_registry.resolve_namespace_to_servers(namespace)
     return error is None
 
 

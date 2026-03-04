@@ -9,7 +9,7 @@ from unittest.mock import patch, MagicMock, AsyncMock
 from manifest import CapabilityRegistry, ManifestQuery, EventHookManager
 from sandbox import (
     SandboxExecutor,
-    SandboxManifest,
+    AccessControlConfig,
     NamespaceAccessControl,
     ProxyAPI,
 )
@@ -24,7 +24,7 @@ class TestSearchExecuteFlow:
         registry = CapabilityRegistry()
         manifest = registry.build(sample_servers_tools)
 
-        sandbox_manifest = SandboxManifest(
+        sandbox_manifest = AccessControlConfig(
             servers={
                 name: {"tools": [t["name"] for t in tools]}
                 for name, tools in sample_servers_tools.items()
@@ -134,7 +134,7 @@ class TestNamespaceIsolation:
 
     @pytest.fixture
     def isolated_manifest(self, isolated_namespaces: Dict[str, Any]):
-        return SandboxManifest(
+        return AccessControlConfig(
             servers={
                 "crypto": {"tools": ["crypto__hash", "crypto__encrypt"]},
                 "system": {"tools": ["system__execute", "system__reboot"]},
@@ -143,7 +143,7 @@ class TestNamespaceIsolation:
             namespaces=isolated_namespaces,
         )
 
-    def test_crypto_cannot_access_system(self, isolated_manifest: SandboxManifest):
+    def test_crypto_cannot_access_system(self, isolated_manifest: AccessControlConfig):
         access_control = NamespaceAccessControl(isolated_manifest)
 
         allowed, _ = access_control.can_access("crypto", "crypto")
@@ -153,7 +153,7 @@ class TestNamespaceIsolation:
         assert not allowed
         assert "system" in error
 
-    def test_browser_cannot_access_crypto(self, isolated_manifest: SandboxManifest):
+    def test_browser_cannot_access_crypto(self, isolated_manifest: AccessControlConfig):
         access_control = NamespaceAccessControl(isolated_manifest)
 
         allowed, _ = access_control.can_access("browser", "playwright")
@@ -162,7 +162,7 @@ class TestNamespaceIsolation:
         allowed, error = access_control.can_access("browser", "crypto")
         assert not allowed
 
-    def test_admin_has_combined_access(self, isolated_manifest: SandboxManifest):
+    def test_admin_has_combined_access(self, isolated_manifest: AccessControlConfig):
         access_control = NamespaceAccessControl(isolated_manifest)
 
         allowed, _ = access_control.can_access("admin", "crypto")
@@ -175,7 +175,7 @@ class TestNamespaceIsolation:
         assert allowed
 
     def test_get_allowed_tools_respects_isolation(
-        self, isolated_manifest: SandboxManifest
+        self, isolated_manifest: AccessControlConfig
     ):
         access_control = NamespaceAccessControl(isolated_manifest)
 
@@ -187,7 +187,7 @@ class TestNamespaceIsolation:
         assert system_tools == []
         assert "does not have access" in error
 
-    def test_proxy_api_isolated_view(self, isolated_manifest: SandboxManifest):
+    def test_proxy_api_isolated_view(self, isolated_manifest: AccessControlConfig):
         access_control = NamespaceAccessControl(isolated_manifest)
 
         crypto_api = ProxyAPI("crypto", access_control, lambda *args: None)
@@ -334,7 +334,7 @@ class TestEndToEndWorkflow:
         registry.build(servers_tools)
         registry.validate_inheritance(config["namespaces"])
 
-        sandbox_manifest = SandboxManifest(
+        sandbox_manifest = AccessControlConfig(
             servers={
                 name: {"tools": [t["name"] for t in tools]}
                 for name, tools in servers_tools.items()
@@ -438,7 +438,7 @@ class TestErrorRecovery:
         assert "error" in results
 
     def test_access_control_handles_missing_namespace(self):
-        manifest = SandboxManifest(servers={}, namespaces={})
+        manifest = AccessControlConfig(servers={}, namespaces={})
         access_control = NamespaceAccessControl(manifest)
 
         allowed, error = access_control.can_access("nonexistent", "server")
@@ -446,7 +446,7 @@ class TestErrorRecovery:
         assert "not found" in error
 
     def test_executor_returns_structured_error(self):
-        manifest = SandboxManifest(servers={}, namespaces={})
+        manifest = AccessControlConfig(servers={}, namespaces={})
         executor = SandboxExecutor(manifest, lambda *args: None)
 
         result = executor.execute("import os", "namespace")

@@ -1,6 +1,6 @@
 """Generate TypeScript definitions from manifest for LLM type awareness."""
 
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 
 def json_schema_to_ts(schema: Dict[str, Any], indent: int = 0) -> str:
@@ -49,116 +49,6 @@ def json_schema_to_ts(schema: Dict[str, Any], indent: int = 0) -> str:
     return "any"
 
 
-def generate_server_interface(server_name: str, tools: List[Dict[str, Any]]) -> str:
-    """Generate TypeScript interface for a server.
-
-    Args:
-        server_name: Name of the server
-        tools: List of tool dictionaries with inputSchema
-
-    Returns:
-        TypeScript interface string
-    """
-    interface_name = "".join(word.capitalize() for word in server_name.split("_"))
-    lines = [f"interface {interface_name}API {{"]
-
-    for tool in tools:
-        tool_name = tool.get("name", "")
-        description = tool.get("description", "")
-        input_schema = tool.get("inputSchema", {})
-
-        # Extract parameters
-        properties = input_schema.get("properties", {})
-        required = set(input_schema.get("required", []))
-
-        # Build parameter list
-        params = []
-        for prop_name, prop_schema in properties.items():
-            prop_type = json_schema_to_ts(prop_schema, 1)
-            optional = "?" if prop_name not in required else ""
-            params.append(f"{prop_name}{optional}: {prop_type}")
-
-        params_str = ", ".join(params) if params else ""
-
-        # Add method with JSDoc
-        if description:
-            lines.append(f"  /** {description} */")
-        lines.append(f"  {tool_name}({params_str}): Promise<any>;")
-        lines.append("")
-
-    lines.append("}")
-    return "\n".join(lines)
-
-
-def generate_typescript_definitions(manifest: Dict[str, Any]) -> str:
-    """Generate complete TypeScript definitions from manifest.
-
-    Args:
-        manifest: Manifest dictionary with servers and tools
-
-    Returns:
-        TypeScript definitions string
-    """
-    lines = [
-        "// MCProxy v2 API Type Definitions",
-        "// Auto-generated from manifest",
-        "",
-        "// Session stash for caching",
-        "interface SessionStash {",
-        "  put(key: string, value: any, ttl?: number): void;",
-        "  get(key: string): any;",
-        "  delete(key: string): void;",
-        "  clear(): void;",
-        "}",
-        "",
-        "// Parallel execution helper",
-        "interface ForgeParallel {",
-        "  parallel<T>(calls: (() => Promise<T>)[]): Promise<{ results: T[] }>;",
-        "}",
-        "",
-    ]
-
-    # Generate server interfaces
-    servers = manifest.get("servers", {})
-    tools_by_server = manifest.get("tools_by_server", {})
-
-    server_names = []
-    for server_name in servers.keys():
-        tools = tools_by_server.get(server_name, [])
-        if tools:
-            interface_def = generate_server_interface(server_name, tools)
-            lines.append(interface_def)
-            lines.append("")
-            server_names.append(server_name)
-
-    # Generate main API interface
-    lines.append("interface MCProxyAPI {")
-    lines.append("  /** Get full manifest of available tools */")
-    lines.append("  manifest(): any;")
-    lines.append("")
-    lines.append("  /** Call tool directly */")
-    lines.append(
-        "  call_tool(server: string, tool: string, args: Record<string, any>): Promise<any>;"
-    )
-    lines.append("")
-
-    # Add server methods
-    for server_name in server_names:
-        interface_name = "".join(word.capitalize() for word in server_name.split("_"))
-        lines.append(f"  /** Access {server_name} tools */")
-        lines.append(f'  server(name: "{server_name}"): {interface_name}API;')
-        lines.append("")
-
-    lines.append("}")
-    lines.append("")
-    lines.append("// Sandbox globals")
-    lines.append("declare const api: MCProxyAPI;")
-    lines.append("declare const stash: SessionStash;")
-    lines.append("declare const forge: ForgeParallel;")
-
-    return "\n".join(lines)
-
-
 def generate_compact_instructions(
     manifest: Dict[str, Any], detailed: bool = False
 ) -> str:
@@ -179,9 +69,10 @@ def generate_compact_instructions(
     lines = [
         "MCProxy v2 Code Mode API",
         "",
-        "⚠️ CRITICAL: Use only the servers listed below!",
-        "Server names vary by environment. Do NOT guess names like 'playwright' or 'pure_md'.",
-        "The servers available in THIS environment are listed under 'Available servers'.",
+        "Tool selection:",
+        "  execute  - Run Python code accessing multiple servers or with logic",
+        "  sequence - Single read / read-modify-write (no code logic needed)",
+        "  search   - Discover tool names when unknown (skip if server name is known)",
         "",
         "Usage: api.server('name').tool(args)",
         "",
@@ -232,6 +123,15 @@ def generate_compact_instructions(
             tool_count = server_info.get("tool_count", 0)
             lines.append(f"  {server_name}: {tool_count} tools")
 
+    lines.extend(
+        [
+            "",
+            "Cross-call state (execute runs in isolated subprocess):",
+            "  stash.put(key, value, ttl?)  - Save between calls",
+            "  stash.get(key)               - Retrieve saved data",
+        ]
+    )
+
     # Generate dynamic examples based on available servers
     lines.append("")
     lines.append("Examples:")
@@ -263,31 +163,15 @@ def generate_compact_instructions(
             )
             example_count += 1
 
-    # Fallback if no servers with tools
-    if example_count == 0:
-        lines.append('  api.server("server_name").tool_name(param: type): Promise<any>')
-
     lines.extend(
         [
             "",
-            "Note: Hyphenated tool names use underscores (auto-converted):",
-            "  get-coins → get_coins()",
-            "  get-coin-by-id → get_coin_by_id()",
-            "",
-            "For read-modify-write: mcproxy_sequence(read, transform, write)",
-            "  'read_result' in transform is extracted content",
-            "  'result' must be set with write args",
-            "",
-            "For parameter details: mcproxy_search(query='tool_name', max_depth=3)",
-            "",
-            "Note: Each execute call is isolated (fresh subprocess).",
-            "Use stash for cross-call state:",
-            "  stash.put(key, value, ttl?) - Save data",
-            "  stash.get(key) - Retrieve data",
-            "",
             "Utilities:",
-            "  api.manifest() - Get full tool details",
-            "  await forge.parallel([...]) - Run calls concurrently",
+            "  api.manifest()           - Full tool details with schemas",
+            "  forge.parallel([...])    - Run calls concurrently",
+            "",
+            "Note: Hyphenated tool names use underscores: get-coins → get_coins()",
+            "For parameter details: search(query='tool_name', max_depth=3)",
         ]
     )
 

@@ -36,32 +36,16 @@ logger = get_logger(__name__)
 app = FastAPI(title="MCProxy", version="2.0.0")
 
 
-def _get_capability_registry() -> Optional[CapabilityRegistry]:
-    return get_capability_registry()
-
-
-def _get_sandbox_executor() -> Optional[SandboxExecutor]:
-    return get_sandbox_executor()
-
-
-def _get_session_manager() -> Optional[Any]:
-    return get_session_manager()
-
-
-def _get_tool_executor() -> Optional[Callable]:
-    return get_tool_executor()
-
-
 _handle_message = create_message_handler(
-    capability_registry_getter=_get_capability_registry,
-    sandbox_executor_getter=_get_sandbox_executor,
-    session_manager_getter=_get_session_manager,
-    tool_executor_getter=_get_tool_executor,
+    capability_registry_getter=get_capability_registry,
+    sandbox_executor_getter=get_sandbox_executor,
+    session_manager_getter=get_session_manager,
+    tool_executor_getter=get_tool_executor,
 )
 
 register_sse_endpoints(
     app,
-    capability_registry_getter=_get_capability_registry,
+    capability_registry_getter=get_capability_registry,
     handle_message=_handle_message,
 )
 

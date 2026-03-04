@@ -3,9 +3,8 @@
 Provides secure code execution via uv subprocess with namespace-based access control.
 """
 
-from sandbox.access_control import NamespaceAccessControl, SandboxManifest
+from sandbox.access_control import NamespaceAccessControl, AccessControlConfig
 from sandbox.executor import SandboxExecutor
-from sandbox.factory import create_sandbox_executor
 from sandbox.proxy import DynamicProxy, ProxyAPI
 from sandbox.security import (
     BLOCKED_BUILTINS,
@@ -18,11 +17,10 @@ from sandbox.security import (
 
 __all__ = [
     "SandboxExecutor",
-    "SandboxManifest",
+    "AccessControlConfig",
     "NamespaceAccessControl",
     "ProxyAPI",
     "DynamicProxy",
-    "create_sandbox_executor",
     "suggest_tool_fix",
     "BLOCKED_IMPORTS",
     "BLOCKED_BUILTINS",

@@ -12,7 +12,7 @@ from fastapi.responses import StreamingResponse
 
 from manifest import CapabilityRegistry, ManifestQuery
 from manifest.typescript_gen import generate_compact_instructions
-from sandbox import SandboxExecutor, SandboxManifest
+from sandbox import SandboxExecutor, AccessControlConfig
 from logging_config import get_logger
 from session_stash import SessionManager, SessionStash
 
@@ -28,8 +28,8 @@ META_TOOLS = [
     {
         "name": "search",
         "description": "OPTIONAL - Only use if you don't know the server/tool name. "
-        "For common tools (perplexity_sonar, wikipedia, playwright, think_tool, etc.), "
-        "skip this and call execute directly with api.server('name').tool(args). "
+        "Available servers are listed in the initialize instructions. "
+        "Skip this and call execute directly with api.server('name').tool(args). "
         "Returns matching tools with metadata.",
         "inputSchema": {
             "type": "object",
@@ -54,8 +54,7 @@ META_TOOLS = [
     {
         "name": "execute",
         "description": "Execute Python code with tool access via api.server('name').tool(args). "
-        "CRITICAL: Only use servers listed in the MCP instructions (Available servers section). "
-        "Do NOT guess server names - they vary by environment.",
+        "Use only the servers listed in the initialize instructions.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -156,7 +155,7 @@ async def handle_initialize(
 
     if namespace and capability_registry is not None:
         result["namespace"] = namespace
-        servers, _ = capability_registry.resolve_endpoint_to_servers(namespace)
+        servers, _ = capability_registry.resolve_namespace_to_servers(namespace)
         result["namespaceInfo"] = {
             "name": namespace,
             "servers": servers,
@@ -395,7 +394,7 @@ async def handle_execute(
             session=session,
         )
 
-        pending_calls = result.get("pending_calls", [])
+        pending_calls = result.get("deferred_calls", [])
         if pending_calls and tool_executor:
             call_results = []
             for call in pending_calls:

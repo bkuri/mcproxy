@@ -6,14 +6,13 @@ from unittest.mock import patch, MagicMock
 
 from sandbox import (
     SandboxExecutor,
-    SandboxManifest,
+    AccessControlConfig,
     NamespaceAccessControl,
     ProxyAPI,
     DynamicProxy,
     BLOCKED_IMPORTS,
     BLOCKED_BUILTINS,
     MAX_CODE_SIZE_BYTES,
-    create_sandbox_executor,
     suggest_tool_fix,
     FUZZY_MATCH_THRESHOLD,
     MAX_SUGGESTIONS,
@@ -23,7 +22,7 @@ from sandbox import (
 class TestSandboxExecutorValidation:
     """Tests for SandboxExecutor.validate_code()."""
 
-    def test_validate_code_valid(self, sandbox_manifest: SandboxManifest):
+    def test_validate_code_valid(self, sandbox_manifest: AccessControlConfig):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
         code = "x = 1 + 2\nresult = x * 3"
         is_valid, error = executor.validate_code(code)
@@ -31,7 +30,7 @@ class TestSandboxExecutorValidation:
         assert is_valid is True
         assert error == ""
 
-    def test_validate_code_syntax_error(self, sandbox_manifest: SandboxManifest):
+    def test_validate_code_syntax_error(self, sandbox_manifest: AccessControlConfig):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
         code = "def broken(\n  pass"
         is_valid, error = executor.validate_code(code)
@@ -39,7 +38,7 @@ class TestSandboxExecutorValidation:
         assert is_valid is False
         assert "Syntax error" in error
 
-    def test_validate_code_size_limit(self, sandbox_manifest: SandboxManifest):
+    def test_validate_code_size_limit(self, sandbox_manifest: AccessControlConfig):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
         large_code = "x = 1\n" * (MAX_CODE_SIZE_BYTES // 4)
         is_valid, error = executor.validate_code(large_code)
@@ -48,7 +47,7 @@ class TestSandboxExecutorValidation:
         assert "exceeds maximum size" in error
 
     def test_validate_code_size_exactly_at_limit(
-        self, sandbox_manifest: SandboxManifest
+        self, sandbox_manifest: AccessControlConfig
     ):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
         code_size = MAX_CODE_SIZE_BYTES - 100
@@ -58,7 +57,7 @@ class TestSandboxExecutorValidation:
         assert is_valid is True
 
     def test_validate_code_unicode_normalization(
-        self, sandbox_manifest: SandboxManifest
+        self, sandbox_manifest: AccessControlConfig
     ):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
         code = "x = '\uff41'"  # Full-width 'a'
@@ -70,7 +69,7 @@ class TestSandboxExecutorValidation:
 class TestBlockedImports:
     """Tests for blocked import detection."""
 
-    def test_blocked_import_os(self, sandbox_manifest: SandboxManifest):
+    def test_blocked_import_os(self, sandbox_manifest: AccessControlConfig):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
         code = "import os"
         is_valid, error = executor.validate_code(code)
@@ -79,7 +78,7 @@ class TestBlockedImports:
         assert "Blocked import detected" in error
         assert "os" in error
 
-    def test_blocked_import_sys(self, sandbox_manifest: SandboxManifest):
+    def test_blocked_import_sys(self, sandbox_manifest: AccessControlConfig):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
         code = "import sys"
         is_valid, error = executor.validate_code(code)
@@ -87,7 +86,7 @@ class TestBlockedImports:
         assert is_valid is False
         assert "sys" in error
 
-    def test_blocked_import_subprocess(self, sandbox_manifest: SandboxManifest):
+    def test_blocked_import_subprocess(self, sandbox_manifest: AccessControlConfig):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
         code = "import subprocess"
         is_valid, error = executor.validate_code(code)
@@ -95,7 +94,7 @@ class TestBlockedImports:
         assert is_valid is False
         assert "subprocess" in error
 
-    def test_blocked_import_socket(self, sandbox_manifest: SandboxManifest):
+    def test_blocked_import_socket(self, sandbox_manifest: AccessControlConfig):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
         code = "import socket"
         is_valid, error = executor.validate_code(code)
@@ -103,7 +102,7 @@ class TestBlockedImports:
         assert is_valid is False
         assert "socket" in error
 
-    def test_blocked_import_http(self, sandbox_manifest: SandboxManifest):
+    def test_blocked_import_http(self, sandbox_manifest: AccessControlConfig):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
         code = "import http.client"
         is_valid, error = executor.validate_code(code)
@@ -111,7 +110,7 @@ class TestBlockedImports:
         assert is_valid is False
         assert "http" in error
 
-    def test_blocked_import_urllib(self, sandbox_manifest: SandboxManifest):
+    def test_blocked_import_urllib(self, sandbox_manifest: AccessControlConfig):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
         code = "from urllib.request import urlopen"
         is_valid, error = executor.validate_code(code)
@@ -119,7 +118,7 @@ class TestBlockedImports:
         assert is_valid is False
         assert "urllib" in error
 
-    def test_blocked_import_requests(self, sandbox_manifest: SandboxManifest):
+    def test_blocked_import_requests(self, sandbox_manifest: AccessControlConfig):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
         code = "import requests"
         is_valid, error = executor.validate_code(code)
@@ -127,7 +126,7 @@ class TestBlockedImports:
         assert is_valid is False
         assert "requests" in error
 
-    def test_blocked_import_shutil(self, sandbox_manifest: SandboxManifest):
+    def test_blocked_import_shutil(self, sandbox_manifest: AccessControlConfig):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
         code = "import shutil"
         is_valid, error = executor.validate_code(code)
@@ -135,7 +134,7 @@ class TestBlockedImports:
         assert is_valid is False
         assert "shutil" in error
 
-    def test_blocked_import_tempfile(self, sandbox_manifest: SandboxManifest):
+    def test_blocked_import_tempfile(self, sandbox_manifest: AccessControlConfig):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
         code = "import tempfile"
         is_valid, error = executor.validate_code(code)
@@ -143,7 +142,9 @@ class TestBlockedImports:
         assert is_valid is False
         assert "tempfile" in error
 
-    def test_blocked_import_multiprocessing(self, sandbox_manifest: SandboxManifest):
+    def test_blocked_import_multiprocessing(
+        self, sandbox_manifest: AccessControlConfig
+    ):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
         code = "import multiprocessing"
         is_valid, error = executor.validate_code(code)
@@ -151,7 +152,7 @@ class TestBlockedImports:
         assert is_valid is False
         assert "multiprocessing" in error
 
-    def test_blocked_import_from_syntax(self, sandbox_manifest: SandboxManifest):
+    def test_blocked_import_from_syntax(self, sandbox_manifest: AccessControlConfig):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
         code = "from os import path"
         is_valid, error = executor.validate_code(code)
@@ -159,14 +160,16 @@ class TestBlockedImports:
         assert is_valid is False
         assert "os" in error
 
-    def test_allowed_import(self, sandbox_manifest: SandboxManifest):
+    def test_allowed_import(self, sandbox_manifest: AccessControlConfig):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
         code = "import json\nimport math"
         is_valid, error = executor.validate_code(code)
 
         assert is_valid is True
 
-    def test_blocked_import_in_comment_ignored(self, sandbox_manifest: SandboxManifest):
+    def test_blocked_import_in_comment_ignored(
+        self, sandbox_manifest: AccessControlConfig
+    ):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
         code = "# import os\nimport json"
         is_valid, error = executor.validate_code(code)
@@ -177,7 +180,7 @@ class TestBlockedImports:
 class TestBlockedBuiltins:
     """Tests for blocked builtin detection."""
 
-    def test_blocked_builtin_eval(self, sandbox_manifest: SandboxManifest):
+    def test_blocked_builtin_eval(self, sandbox_manifest: AccessControlConfig):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
         code = "x = eval('1+1')"
         is_valid, error = executor.validate_code(code)
@@ -185,7 +188,7 @@ class TestBlockedBuiltins:
         assert is_valid is False
         assert "eval" in error
 
-    def test_blocked_builtin_exec(self, sandbox_manifest: SandboxManifest):
+    def test_blocked_builtin_exec(self, sandbox_manifest: AccessControlConfig):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
         code = "exec('x = 1')"
         is_valid, error = executor.validate_code(code)
@@ -193,7 +196,7 @@ class TestBlockedBuiltins:
         assert is_valid is False
         assert "exec" in error
 
-    def test_blocked_builtin_compile(self, sandbox_manifest: SandboxManifest):
+    def test_blocked_builtin_compile(self, sandbox_manifest: AccessControlConfig):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
         code = "compile('x = 1', '<string>', 'exec')"
         is_valid, error = executor.validate_code(code)
@@ -201,7 +204,7 @@ class TestBlockedBuiltins:
         assert is_valid is False
         assert "compile" in error
 
-    def test_blocked_builtin_open(self, sandbox_manifest: SandboxManifest):
+    def test_blocked_builtin_open(self, sandbox_manifest: AccessControlConfig):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
         code = "f = open('file.txt')"
         is_valid, error = executor.validate_code(code)
@@ -209,7 +212,7 @@ class TestBlockedBuiltins:
         assert is_valid is False
         assert "open" in error
 
-    def test_blocked_builtin_input(self, sandbox_manifest: SandboxManifest):
+    def test_blocked_builtin_input(self, sandbox_manifest: AccessControlConfig):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
         code = "x = input('prompt')"
         is_valid, error = executor.validate_code(code)
@@ -217,7 +220,7 @@ class TestBlockedBuiltins:
         assert is_valid is False
         assert "input" in error
 
-    def test_blocked_builtin_breakpoint(self, sandbox_manifest: SandboxManifest):
+    def test_blocked_builtin_breakpoint(self, sandbox_manifest: AccessControlConfig):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
         code = "breakpoint()"
         is_valid, error = executor.validate_code(code)
@@ -225,7 +228,7 @@ class TestBlockedBuiltins:
         assert is_valid is False
         assert "breakpoint" in error
 
-    def test_allowed_builtin_call(self, sandbox_manifest: SandboxManifest):
+    def test_allowed_builtin_call(self, sandbox_manifest: AccessControlConfig):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
         code = "x = len([1, 2, 3])\ny = str(x)"
         is_valid, error = executor.validate_code(code)
@@ -309,37 +312,39 @@ class TestNamespaceAccessControl:
         assert "playwright" in servers or "filesystem" in servers
 
 
-class TestSandboxManifest:
-    """Tests for SandboxManifest dataclass."""
+class TestAccessControlConfig:
+    """Tests for AccessControlConfig dataclass."""
 
-    def test_get_server(self, sandbox_manifest: SandboxManifest):
+    def test_get_server(self, sandbox_manifest: AccessControlConfig):
         server = sandbox_manifest.get_server("playwright")
 
         assert server is not None
         assert "tools" in server
 
-    def test_get_server_not_found(self, sandbox_manifest: SandboxManifest):
+    def test_get_server_not_found(self, sandbox_manifest: AccessControlConfig):
         server = sandbox_manifest.get_server("nonexistent")
 
         assert server is None
 
-    def test_get_namespace(self, sandbox_manifest: SandboxManifest):
+    def test_get_namespace(self, sandbox_manifest: AccessControlConfig):
         ns = sandbox_manifest.get_namespace("browser")
 
         assert ns is not None
 
-    def test_get_namespace_not_found(self, sandbox_manifest: SandboxManifest):
+    def test_get_namespace_not_found(self, sandbox_manifest: AccessControlConfig):
         ns = sandbox_manifest.get_namespace("nonexistent")
 
         assert ns is None
 
-    def test_get_tools_for_server(self, sandbox_manifest: SandboxManifest):
+    def test_get_tools_for_server(self, sandbox_manifest: AccessControlConfig):
         tools = sandbox_manifest.get_tools_for_server("playwright")
 
         assert len(tools) == 3
         assert "playwright__navigate" in tools
 
-    def test_get_tools_for_server_not_found(self, sandbox_manifest: SandboxManifest):
+    def test_get_tools_for_server_not_found(
+        self, sandbox_manifest: AccessControlConfig
+    ):
         tools = sandbox_manifest.get_tools_for_server("nonexistent")
 
         assert tools == []
@@ -444,7 +449,9 @@ class TestDynamicProxy:
 class TestSandboxExecutorExecute:
     """Tests for SandboxExecutor.execute()."""
 
-    def test_execute_returns_validation_error(self, sandbox_manifest: SandboxManifest):
+    def test_execute_returns_validation_error(
+        self, sandbox_manifest: AccessControlConfig
+    ):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
         result = executor.execute("import os", "browser")
 
@@ -452,7 +459,7 @@ class TestSandboxExecutorExecute:
         assert "Validation error" in result["traceback"]
         assert result["result"] is None
 
-    def test_execute_result_format(self, sandbox_manifest: SandboxManifest):
+    def test_execute_result_format(self, sandbox_manifest: AccessControlConfig):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
 
         with patch.object(
@@ -466,7 +473,7 @@ class TestSandboxExecutorExecute:
             assert result["result"] == 42
             assert "execution_time_ms" in result
 
-    def test_execute_timeout(self, sandbox_manifest: SandboxManifest):
+    def test_execute_timeout(self, sandbox_manifest: AccessControlConfig):
         import subprocess
 
         executor = SandboxExecutor(
@@ -483,7 +490,7 @@ class TestSandboxExecutorExecute:
             assert result["status"] == "error"
             assert "timed out" in result["traceback"]
 
-    def test_execute_process_error(self, sandbox_manifest: SandboxManifest):
+    def test_execute_process_error(self, sandbox_manifest: AccessControlConfig):
         import subprocess
 
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
@@ -498,7 +505,7 @@ class TestSandboxExecutorExecute:
             assert result["status"] == "error"
             assert "Error output" in result["traceback"]
 
-    def test_execute_json_decode_error(self, sandbox_manifest: SandboxManifest):
+    def test_execute_json_decode_error(self, sandbox_manifest: AccessControlConfig):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
 
         with patch.object(executor, "_run_uv_subprocess", return_value="invalid json{"):
@@ -511,7 +518,7 @@ class TestSandboxExecutorExecute:
 class TestSandboxExecutorHelpers:
     """Tests for SandboxExecutor helper methods."""
 
-    def test_strip_comments_single_line(self, sandbox_manifest: SandboxManifest):
+    def test_strip_comments_single_line(self, sandbox_manifest: AccessControlConfig):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
 
         code = "x = 1  # comment\ny = 2"
@@ -521,7 +528,9 @@ class TestSandboxExecutorHelpers:
         assert "x = 1" in stripped
         assert "y = 2" in stripped
 
-    def test_strip_comments_preserves_strings(self, sandbox_manifest: SandboxManifest):
+    def test_strip_comments_preserves_strings(
+        self, sandbox_manifest: AccessControlConfig
+    ):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
 
         code = 'x = "# not a comment"'
@@ -529,7 +538,9 @@ class TestSandboxExecutorHelpers:
 
         assert '"# not a comment"' in stripped
 
-    def test_strip_comments_multiline_string(self, sandbox_manifest: SandboxManifest):
+    def test_strip_comments_multiline_string(
+        self, sandbox_manifest: AccessControlConfig
+    ):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
 
         code = 'x = """multi\\n# line\\nstring"""'
@@ -537,7 +548,7 @@ class TestSandboxExecutorHelpers:
 
         assert '"""multi' in stripped
 
-    def test_build_env(self, sandbox_manifest: SandboxManifest):
+    def test_build_env(self, sandbox_manifest: AccessControlConfig):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
         access_control = NamespaceAccessControl(sandbox_manifest)
 
@@ -547,7 +558,7 @@ class TestSandboxExecutorHelpers:
         assert env["PYTHONUNBUFFERED"] == "1"
         assert env["SANDBOX_NAMESPACE"] == "test_namespace"
 
-    def test_wrap_code_includes_namespace(self, sandbox_manifest: SandboxManifest):
+    def test_wrap_code_includes_namespace(self, sandbox_manifest: AccessControlConfig):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
         access_control = NamespaceAccessControl(sandbox_manifest)
 
@@ -559,17 +570,17 @@ class TestSandboxExecutorHelpers:
 
 
 class TestCreateSandboxExecutor:
-    """Tests for factory function."""
+    """Tests for SandboxExecutor construction."""
 
-    def test_create_sandbox_executor(self, sandbox_manifest: SandboxManifest):
-        executor = create_sandbox_executor(sandbox_manifest, lambda *args: None)
+    def test_create_sandbox_executor(self, sandbox_manifest: AccessControlConfig):
+        executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
 
         assert isinstance(executor, SandboxExecutor)
 
     def test_create_sandbox_executor_with_kwargs(
-        self, sandbox_manifest: SandboxManifest
+        self, sandbox_manifest: AccessControlConfig
     ):
-        executor = create_sandbox_executor(
+        executor = SandboxExecutor(
             sandbox_manifest,
             lambda *args: None,
             uv_path="/custom/uv",
@@ -583,7 +594,7 @@ class TestCreateSandboxExecutor:
 class TestErrorFormat:
     """Tests for structured error response format."""
 
-    def test_error_response_has_traceback(self, sandbox_manifest: SandboxManifest):
+    def test_error_response_has_traceback(self, sandbox_manifest: AccessControlConfig):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
         result = executor.execute("import os", "browser")
 
@@ -591,21 +602,23 @@ class TestErrorFormat:
         assert isinstance(result["traceback"], str)
         assert len(result["traceback"]) > 0
 
-    def test_error_response_has_status(self, sandbox_manifest: SandboxManifest):
+    def test_error_response_has_status(self, sandbox_manifest: AccessControlConfig):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
         result = executor.execute("import os", "browser")
 
         assert "status" in result
         assert result["status"] == "error"
 
-    def test_error_response_has_execution_time(self, sandbox_manifest: SandboxManifest):
+    def test_error_response_has_execution_time(
+        self, sandbox_manifest: AccessControlConfig
+    ):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
         result = executor.execute("import os", "browser")
 
         assert "execution_time_ms" in result
         assert isinstance(result["execution_time_ms"], int)
 
-    def test_error_response_result_is_none(self, sandbox_manifest: SandboxManifest):
+    def test_error_response_result_is_none(self, sandbox_manifest: AccessControlConfig):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
         result = executor.execute("import os", "browser")
 
@@ -693,7 +706,7 @@ class TestExecuteAccessControl:
     """Tests for execute sandbox enforcing namespace access control."""
 
     def test_execute_blocks_unauthorized_server(
-        self, sandbox_manifest: SandboxManifest
+        self, sandbox_manifest: AccessControlConfig
     ):
         """Execute should block calls to servers outside the namespace."""
         executor = SandboxExecutor(sandbox_manifest, lambda *args: {"result": "ok"})
@@ -707,7 +720,7 @@ class TestExecuteAccessControl:
         assert "filesystem" in result["traceback"]
 
     def test_execute_blocks_unauthorized_call_tool(
-        self, sandbox_manifest: SandboxManifest
+        self, sandbox_manifest: AccessControlConfig
     ):
         """Execute should block call_tool to servers outside the namespace."""
         executor = SandboxExecutor(sandbox_manifest, lambda *args: {"result": "ok"})
@@ -720,7 +733,9 @@ class TestExecuteAccessControl:
         assert "Access denied" in result["traceback"]
         assert "filesystem" in result["traceback"]
 
-    def test_execute_allows_authorized_server(self, sandbox_manifest: SandboxManifest):
+    def test_execute_allows_authorized_server(
+        self, sandbox_manifest: AccessControlConfig
+    ):
         """Execute should allow calls to servers within the namespace."""
         executor = SandboxExecutor(sandbox_manifest, lambda *args: {"result": "ok"})
 
@@ -739,7 +754,7 @@ async def run():
         assert result["pending_calls"][0]["tool"] == "navigate"
 
     def test_execute_blocks_cross_namespace_access(
-        self, sandbox_manifest: SandboxManifest
+        self, sandbox_manifest: AccessControlConfig
     ):
         """Execute should block accessing servers from different isolated namespaces."""
         executor = SandboxExecutor(sandbox_manifest, lambda *args: {"result": "ok"})
@@ -751,7 +766,7 @@ async def run():
         assert "Access denied" in result["traceback"]
 
     def test_execute_namespace_inheritance_works(
-        self, sandbox_manifest: SandboxManifest
+        self, sandbox_manifest: AccessControlConfig
     ):
         """Namespaces that extend others should inherit access."""
         executor = SandboxExecutor(sandbox_manifest, lambda *args: {"result": "ok"})
@@ -769,7 +784,7 @@ async def run():
         assert len(result.get("pending_calls", [])) == 1
         assert result["pending_calls"][0]["server"] == "playwright"
 
-    def test_execute_sync_call_works(self, sandbox_manifest: SandboxManifest):
+    def test_execute_sync_call_works(self, sandbox_manifest: AccessControlConfig):
         """Execute should work with sync calls (without async/await)."""
         executor = SandboxExecutor(sandbox_manifest, lambda *args: {"result": "ok"})
 

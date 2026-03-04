@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 
 @dataclass
-class SandboxManifest:
+class AccessControlConfig:
     """Simplified manifest view for sandbox access control."""
 
     servers: Dict[str, Dict[str, Any]] = field(default_factory=dict)
@@ -32,7 +32,7 @@ class SandboxManifest:
 class NamespaceAccessControl:
     """Controls access to servers based on namespace permissions."""
 
-    manifest: "SandboxManifest"
+    manifest: "AccessControlConfig"
 
     def can_access(self, namespace: str, target_server: str) -> Tuple[bool, str]:
         """Check if namespace can access target server.

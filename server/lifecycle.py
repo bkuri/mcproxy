@@ -3,7 +3,7 @@
 from typing import Any, Callable, Dict, List, Optional
 
 from manifest import CapabilityRegistry, EventHookManager
-from sandbox import SandboxExecutor, SandboxManifest
+from sandbox import SandboxExecutor, AccessControlConfig
 from logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -56,7 +56,7 @@ def init_v2_components(
     event_hook_manager = EventHookManager(capability_registry)
 
     if tool_executor and capability_registry:
-        sandbox_manifest = SandboxManifest(
+        sandbox_manifest = AccessControlConfig(
             servers=capability_registry._manifest.get("servers", {}),
             namespaces=capability_registry._namespaces,
             groups=capability_registry._groups,
@@ -89,7 +89,7 @@ def refresh_manifest(servers_tools: Dict[str, List]) -> None:
     capability_registry.build(servers_tools)
 
     if sandbox_executor and capability_registry:
-        sandbox_executor._manifest = SandboxManifest(
+        sandbox_executor._manifest = AccessControlConfig(
             servers=capability_registry._manifest.get("servers", {}),
             namespaces=capability_registry._namespaces,
             groups=capability_registry._groups,
