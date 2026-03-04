@@ -9,11 +9,15 @@ fi
 # --- END BEADS INTEGRATION ---
 
 # Auto-deploy to server2 after pushing to main
+echo "🔍 post-push hook triggered" >&2
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+echo "  Current branch: $CURRENT_BRANCH" >&2
 
 if [ "$CURRENT_BRANCH" = "main" ]; then
+    echo "  ✅ On main branch, will deploy" >&2
     # Check if we pushed to origin/main
     while read local_ref local_sha remote_ref remote_sha; do
+        echo "  Pushed: $local_ref -> $remote_ref" >&2
         if [ "$remote_ref" = "refs/heads/main" ]; then
             echo ""
             echo "🚀 Deploying to server2..."
