@@ -75,6 +75,7 @@ def generate_compact_instructions(
         "  search   - Discover tool names when unknown (skip if server name is known)",
         "",
         "Usage: api.server('name').tool(args)",
+        "Discovery: api.manifest() returns all servers with full tool schemas",
         "",
         "Available servers and tools:",
     ]
@@ -167,11 +168,9 @@ def generate_compact_instructions(
         [
             "",
             "Utilities:",
-            "  api.manifest()           - Full tool details with schemas",
             "  forge.parallel([...])    - Run calls concurrently",
             "",
             "Note: Hyphenated tool names use underscores: get-coins → get_coins()",
-            "For parameter details: search(query='tool_name', max_depth=3)",
         ]
     )
 
