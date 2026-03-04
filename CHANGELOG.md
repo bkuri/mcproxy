@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [2.0.0] - 2026-03-03
 
 ### Breaking Changes
 
@@ -44,15 +44,25 @@ mcproxy_sequence(
 - Simple find/replace: `data` → `read_result` in transform code
 - Deployed 2026-03-03, minimal existing usage expected
 
----
-
-## [1.0.0] - 2026-03-03
-
 ### Added
-- Initial release of MCProxy v2 Code Mode API
-- `mcproxy_search` - Discover tools by query
-- `mcproxy_execute` - Run Python code with tool access
-- `mcproxy_sequence` - Read-modify-write in single call
-- Namespace-aware routing
-- Hot-reload configuration
-- Session stash for stateful operations
+
+- **Project metadata**: Added `pyproject.toml` for proper version tracking and dependency management
+- **uv support**: Recommended setup now uses `uv` for faster dependency installation
+- **`mcproxy_sequence` single operations**: transform and write are now optional
+- **Improved imports**: `json`, `re`, `sys` now available in execute sandbox without explicit imports
+- **Better error messages**: Clear error when trying to access `tool_results` during execution
+
+### Changed
+
+- **Documentation restructured**: `sequence` is now the primary tool recommendation
+- **Self-documenting variable names**: Reduces need for explanatory text
+
+### Migration Guide
+
+#### From v1.x to v2.0
+
+1. **Update transform code**: Replace `data` with `read_result` in all `mcproxy_sequence` transforms
+2. **Optional: Switch to uv**: Use `uv venv && uv pip install -e ".[dev]"` for faster setup
+3. **Update imports**: Remove explicit `import json/re/sys` from execute code (now auto-available)
+
+---

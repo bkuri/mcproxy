@@ -122,7 +122,12 @@ For **operational changes** (add/remove servers in production), hot-reload works
 ## Quick Start
 
 ```bash
-# Setup
+# Setup with uv (recommended)
+uv venv && source .venv/bin/activate
+uv pip install -e ".[dev]"
+cp mcp-servers.v2.example.json config/mcp-servers.json
+
+# OR setup with pip
 python3.11 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 cp mcp-servers.v2.example.json config/mcp-servers.json

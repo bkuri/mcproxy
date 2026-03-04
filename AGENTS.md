@@ -7,7 +7,12 @@
 ## Build & Test Commands
 
 ```bash
-# Setup (one-time)
+# Setup with uv (recommended)
+uv venv
+source .venv/bin/activate
+uv pip install -e ".[dev]"
+
+# Setup with pip (traditional)
 python3.11 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
