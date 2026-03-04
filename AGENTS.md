@@ -307,7 +307,7 @@ mcproxy_sequence(
 mcproxy_sequence(
     read={"server": "home_assistant", "tool": "ha_read_file", "args": {"path": "config.yaml"}},
     transform='''
-    config = json.loads(data)
+    config = json.loads(read_result)
     result = config["some_key"]
     '''
 )
@@ -316,7 +316,7 @@ mcproxy_sequence(
 mcproxy_sequence(
     read={"server": "home_assistant", "tool": "ha_read_file", "args": {"path": "config.yaml"}},
     transform='''
-    config = json.loads(data)
+    config = json.loads(read_result)
     config['new_key'] = 'new_value'
     result = {"path": "config.yaml", "content": json.dumps(config)}
     ''',
@@ -325,9 +325,23 @@ mcproxy_sequence(
 ```
 
 **Transform rules:**
-- `data` contains read result
+- `read_result` is the extracted content from your read operation
 - Must set `result` variable with write args
 - Available: `json`, `re`, `sys`, `stash`
+
+**Example transforms:**
+```python
+# File content → parse JSON → extract key
+result = json.loads(read_result)["some_key"]
+
+# File content → modify → write args
+config = json.loads(read_result)
+config['new'] = 'value'
+result = {"path": "config.yaml", "content": json.dumps(config)}
+
+# String replacement
+result = {"path": "file.js", "content": read_result.replace("old", "new")}
+```
 
 ### Execution Model (Single Operations)
 

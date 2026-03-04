@@ -40,7 +40,7 @@ class TestSequenceBasicReadWrite:
                 "tool": "read",
                 "args": {"path": "test.txt"},
             },
-            "transform": 'result = {"content": data.upper()}',
+            "transform": 'result = {"content": read_result.upper()}',
             "write": {
                 "server": "test_server",
                 "tool": "write",
@@ -91,7 +91,7 @@ class TestSequenceBasicReadWrite:
                 "args": {"path": "config.json"},
             },
             "transform": """
-config = json.loads(data)
+config = json.loads(read_result)
 config["value"] = 42
 config["updated"] = True
 result = {"content": json.dumps(config)}
@@ -152,7 +152,7 @@ result = {"content": json.dumps(config)}
                 "args": {},
             },
             "transform": """
-count = int(data) + 1
+count = int(read_result) + 1
 stash.put("call_count", count)
 result = {"count": str(count)}
 """,
@@ -206,7 +206,7 @@ class TestSequenceErrors:
                 "tool": "read_file",
                 "args": {"path": "/nonexistent.txt"},
             },
-            "transform": 'result = {"content": data}',
+            "transform": 'result = {"content": read_result}',
             "write": {
                 "server": "file_server",
                 "tool": "write_file",
@@ -303,7 +303,7 @@ class TestSequenceErrors:
                 "tool": "read",
                 "args": {"path": "test.txt"},
             },
-            "transform": 'result = {"content": data.upper()}',
+            "transform": 'result = {"content": read_result.upper()}',
             "write": {
                 "server": "file_server",
                 "tool": "write",
@@ -348,7 +348,7 @@ class TestSequenceErrors:
                 "tool": "read",
                 "args": {},
             },
-            "transform": "x = data.upper()",
+            "transform": "x = read_result.upper()",
             "write": {
                 "server": "test_server",
                 "tool": "write",
@@ -379,7 +379,7 @@ class TestSequenceValidation:
     async def test_sequence_missing_read_param(self):
         """Missing read parameter should return error."""
         params = {
-            "transform": 'result = {"content": data}',
+            "transform": 'result = {"content": read_result}',
             "write": {"server": "test", "tool": "write"},
         }
 
@@ -427,7 +427,7 @@ class TestSequenceValidation:
         """Missing namespace should return error."""
         params = {
             "read": {"server": "test", "tool": "read"},
-            "transform": 'result = {"content": data}',
+            "transform": 'result = {"content": read_result}',
             "write": {"server": "test", "tool": "write"},
         }
 
@@ -471,7 +471,7 @@ class TestSequenceDataExtraction:
                 "tool": "read",
                 "args": {},
             },
-            "transform": 'result = {"transformed": data}',
+            "transform": 'result = {"transformed": read_result}',
             "write": {
                 "server": "test_server",
                 "tool": "write",
@@ -519,7 +519,7 @@ class TestSequenceDataExtraction:
                 "tool": "read",
                 "args": {},
             },
-            "transform": 'result = {"value": data}',
+            "transform": 'result = {"value": read_result}',
             "write": {
                 "server": "test_server",
                 "tool": "write",

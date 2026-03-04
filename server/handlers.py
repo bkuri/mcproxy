@@ -95,10 +95,10 @@ META_TOOLS = [
                 },
                 "transform": {
                     "type": "string",
-                    "description": "Python code to transform data. "
-                    "Receives 'data' from read result. Must set 'result' variable with write args. "
-                    "Available: json, re, sys, stash. "
-                    "Optional for simple read operations (data returned as-is).",
+                    "description": "Python code to transform read_result. "
+                    "'read_result' is extracted content from read step. "
+                    "Must set 'result' variable with write args. Available: json, re, sys, stash. "
+                    "Optional for simple read operations.",
                 },
                 "write": {
                     "type": "object",
@@ -525,7 +525,7 @@ async def handle_sequence(
     if transform_code:
         try:
             local_vars: Dict[str, Any] = {
-                "data": data,
+                "read_result": data,
                 "json": json,
                 "re": re,
                 "sys": sys,

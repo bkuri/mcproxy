@@ -28,7 +28,7 @@ Use `mcproxy_sequence` for file/config modifications:
 mcproxy_sequence(
     read={"server": "home_assistant", "tool": "ha_read_file", "args": {"path": "config.yaml"}},
     transform='''
-    config = json.loads(data)
+    config = json.loads(read_result)
     config['new_key'] = 'new_value'
     result = {"path": "config.yaml", "content": json.dumps(config)}
     ''',
