@@ -61,6 +61,9 @@ sudo cp mcproxy.container /etc/containers/systemd/
 sudo systemctl daemon-reload
 sudo systemctl start mcproxy.service
 sudo journalctl -u mcproxy.service -f
+
+# Or use automated deployment (push + deploy in one command)
+./scripts/push-deploy.sh
 ```
 
 ## Code Style Guidelines
