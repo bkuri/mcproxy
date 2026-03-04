@@ -44,6 +44,14 @@ if [ "$DEPLOY_NEEDED" = "1" ]; then
         ssh server2-auto << 'DEPLOY_SCRIPT'
 set -e
 cd /srv/containers/mcproxy
+
+# Ensure we're on main branch
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if [ "$CURRENT_BRANCH" != "main" ]; then
+    echo "  ⚠️  Switching from $CURRENT_BRANCH to main..."
+    git checkout main
+fi
+
 echo ""
 echo "🚀 Auto-deploying to server2..."
 echo "  → Pulling latest changes..."
