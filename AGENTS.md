@@ -57,13 +57,17 @@ docker run -d --name mcproxy \
   localhost/mcproxy:latest
 
 # Deploy (on server2)
+# Initial setup only - deployment is now automatic via git pre-push hook
 sudo cp mcproxy.container /etc/containers/systemd/
 sudo systemctl daemon-reload
 sudo systemctl start mcproxy.service
 sudo journalctl -u mcproxy.service -f
 
-# Or use automated deployment (push + deploy in one command)
-./scripts/push-deploy.sh
+# After initial setup, just push to main - auto-deploys to server2!
+# The pre-push hook automatically:
+# 1. Detects pushes to origin/main
+# 2. Waits for push to complete
+# 3. SSHs to server2, pulls changes, restarts service
 ```
 
 ## Code Style Guidelines
