@@ -400,12 +400,12 @@ import sys
 
 _PARALLEL_MAX_CONCURRENCY = {self._max_concurrency}
 _ipc_client = _IPCClient()
-_manifest_data = {manifest_json}
+_manifest_data = json.loads({repr(manifest_json)})
 _manifest = _Manifest(_manifest_data)
 _registry = _CapabilityRegistry(_manifest)
 _access_control = _NamespaceAccessControl(_registry)
 api = _APIProxy("{namespace}", _access_control, _ipc_client, _manifest)
-_stash_initial = {stash_data_json}
+_stash_initial = json.loads({repr(stash_data_json)})
 stash = _StashProxy(_stash_initial)
 
 _result = None
