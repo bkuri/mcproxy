@@ -140,17 +140,59 @@ class _NamespaceAccessControl:
         return resolved
 
 
+class _ToolProxy:
+    '''Proxy for a single tool, providing both call and inspect capabilities.'''
+    
+    def __init__(self, server_name, tool_name, ipc_client, manifest):
+        self._server_name = server_name
+        self._tool_name = tool_name
+        self._ipc_client = ipc_client
+        self._manifest = manifest
+    
+    def __call__(self, **kwargs):
+        '''Execute the tool with given arguments.'''
+        return self._ipc_client.call(self._server_name, self._tool_name, kwargs)
+    
+    def inspect(self):
+        '''Get tool schema and metadata without executing.
+        
+        Returns:
+            Dict with tool information including:
+            - server: Server name
+            - name: Tool name
+            - description: Tool description
+            - inputSchema: JSON Schema for tool parameters
+        '''
+        server_info = self._manifest.servers.get(self._server_name, {})
+        tools = server_info.get("tools", [])
+        
+        for tool in tools:
+            if tool.get("name") == self._tool_name:
+                return {
+                    "server": self._server_name,
+                    "name": self._tool_name,
+                    "description": tool.get("description", ""),
+                    "inputSchema": tool.get("inputSchema", {})
+                }
+        
+        return {
+            "server": self._server_name,
+            "name": self._tool_name,
+            "error": f"Tool '{self._tool_name}' not found in server '{self._server_name}'",
+            "available_tools": [t.get("name") for t in tools]
+        }
+
+
 class _DynamicProxy:
-    def __init__(self, server_name, namespace, access_control, ipc_client):
+    def __init__(self, server_name, namespace, access_control, ipc_client, manifest):
         self._server_name = server_name
         self._namespace = namespace
         self._access_control = access_control
         self._ipc_client = ipc_client
+        self._manifest = manifest
 
     def __getattr__(self, tool_name):
-        def _call(**kwargs):
-            return self._ipc_client.call(self._server_name, tool_name, kwargs)
-        return _call
+        return _ToolProxy(self._server_name, tool_name, self._ipc_client, self._manifest)
 
 
 class _APIProxy:
@@ -164,7 +206,7 @@ class _APIProxy:
         can_access, error = self._access_control.can_access(self._namespace, name)
         if not can_access:
             raise PermissionError(error)
-        return _DynamicProxy(name, self._namespace, self._access_control, self._ipc_client)
+        return _DynamicProxy(name, self._namespace, self._access_control, self._ipc_client, self._manifest)
 
     def call_tool(self, server, tool, args):
         can_access, error = self._access_control.can_access(self._namespace, server)
