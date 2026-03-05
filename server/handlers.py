@@ -565,9 +565,7 @@ async def handle_sequence(
         if asyncio.iscoroutine(read_result_raw):
             read_result_raw = await read_result_raw
 
-        # Store raw result for debugging, but use extracted data
         result["read_result_raw"] = read_result_raw
-        result["read_result"] = data  # What was actually provided to transform
 
     except Exception as e:
         logger.error(f"[SEQUENCE_ERROR] READ step failed: {e}")
@@ -577,6 +575,7 @@ async def handle_sequence(
 
     # Extract data from read result
     data = _extract_data_from_tool_result(read_result_raw)
+    result["read_result"] = data  # What was actually provided to transform
 
     # TRANSFORM step (optional)
     transform_result = data
