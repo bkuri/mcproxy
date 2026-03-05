@@ -81,37 +81,35 @@ def generate_compact_instructions(
     lines = [
         "MCProxy v2 Code Mode API",
         "",
-        "Default: Use mcproxy_sequence for all operations (reads, read-modify-write)",
-        "",
-        "Discovery:",
-        "  mcproxy_search()                        # List servers + tool counts (concise)",
-        "  mcproxy_search(query='what you need')   # Search for specific tools",
-        "",
-        f"Search behavior:",
-        f"  - Empty query → depth=1 (server names + counts only)",
-        f"  - 1 word → depth=1 (no schemas, fast discovery)",
-        f"  - {min_words_display} words → depth=2 ({max_tools_display} matching tools with schemas + warning)",
-        f"  - Override with depth=3 for all tools with full schemas",
-        "",
         "MCP Tools:",
-        "  mcproxy_sequence  - Single reads OR read-modify-write (RECOMMENDED)",
-        "  mcproxy_search    - Discover servers/tools (empty = concise summary)",
-        "  mcproxy_execute   - Complex Python logic with tool access",
+        "  mcproxy_sequence  - Read OR read-modify-write (RECOMMENDED)",
+        "  mcproxy_search    - Discover servers/tools (empty = summary)",
+        "  mcproxy_execute   - Python code with tool access",
         "",
-        "Usage:",
-        "  # Simple read (read_result is already the extracted text string):",
-        "  mcproxy_sequence(read={'server': 'name', 'tool': 'tool_name', 'args': {...}})",
+        "=== SEQUENCE (for all operations) ===",
+        "  # Simple read:",
+        "  mcproxy_sequence(read={'server': 's', 'tool': 't', 'args': {...}})",
         "",
-        "  # Read-modify-write (transform receives read_result as a plain string):",
+        "  # Read-modify-write:",
         "  mcproxy_sequence(",
         "    read={'server': 'ha', 'tool': 'ha_read_file', 'args': {'path': 'f.yaml'}},",
         '    transform=\'d=json.loads(read_result); d["k"]="v"; result={"path":"f.yaml","content":json.dumps(d)}\',',
         "    write={'server': 'ha', 'tool': 'ha_write_file'}",
         "  )",
         "",
-        "  # IMPORTANT: mcproxy_execute is DEFERRED - api calls queue and run AFTER code.",
-        "  # Never read result inline. Use mcproxy_sequence for read-modify-write instead.",
-        "  mcproxy_execute(code=\"api.server('server_name').tool_name(arg=value)\")",
+        "=== EXECUTE (for complex logic) ===",
+        "  # Deferred (default) - batch ops, results in tool_results field:",
+        "  mcproxy_execute(code=\"api.server('s').tool(arg=val)\")",
+        "",
+        "  # Sync mode - immediate result for conditional logic:",
+        "  mcproxy_execute(code=\"r = api.server('s').tool(arg=val, sync=True); if r: ...\")",
+        "",
+        "  # Tool inspection:",
+        "  mcproxy_execute(code=\"schema = api.server('s').tool.inspect()\")",
+        "",
+        "=== SEARCH ===",
+        f"  mcproxy_search() or mcproxy_search(query='{min_words_display} words')",
+        "  → depth=1: servers+counts | depth=2: top tools+schemas | depth=3: all+schemas",
         "",
         "Available servers and tools:",
     ]
@@ -163,50 +161,10 @@ def generate_compact_instructions(
     lines.extend(
         [
             "",
-            "Cross-call state (execute runs in isolated subprocess):",
-            "  stash.put(key, value, ttl?)  - Save between calls",
-            "  stash.get(key)               - Retrieve saved data",
-        ]
-    )
-
-    # Generate dynamic examples based on available servers
-    lines.append("")
-    lines.append("Examples:")
-
-    # Show 1-2 examples from available servers
-    example_count = 0
-    for server_name, tools in sorted(tools_by_server.items()):
-        if example_count >= 2:
-            break
-        if tools and isinstance(tools[0], dict):
-            first_tool = tools[0]
-            tool_name = first_tool.get("name", "tool")
-            input_schema = first_tool.get("inputSchema", {})
-            properties = input_schema.get("properties", {})
-            required = set(input_schema.get("required", []))
-
-            # Build parameter hint
-            params = []
-            for prop_name, prop_schema in list(properties.items())[
-                :2
-            ]:  # Show first 2 params
-                prop_type = json_schema_to_ts(prop_schema, 0)
-                optional = "?" if prop_name not in required else ""
-                params.append(f"{prop_name}{optional}: {prop_type}")
-
-            params_str = ", ".join(params) if params else ""
-            lines.append(
-                f'  api.server("{server_name}").{tool_name}({params_str}): Promise<any>'
-            )
-            example_count += 1
-
-    lines.extend(
-        [
-            "",
-            "Utilities:",
-            "  forge.parallel([...])    - Run calls concurrently",
-            "",
-            "Note: Hyphenated tool names use underscores: get-coins → get_coins()",
+            "Other:",
+            "  stash.put/get(key, val, ttl?)  - Cross-call state",
+            "  forge.parallel([...])          - Concurrent calls",
+            "  Hyphenated tools → underscores: get-coins → get_coins()",
         ]
     )
 
