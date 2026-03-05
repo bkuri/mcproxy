@@ -528,40 +528,55 @@ print(json.dumps(output))
 
         env = self._build_env(namespace, access_control, self._ipc_sock_path)
 
-        cmd = [self._uv_path, "run"]
-
-        for dep in dependencies:
-            cmd.extend(["--with", dep])
-
-        cmd.extend(["python", "-c", code])
-
-        logger.debug(f"Running uv subprocess: {' '.join(cmd[:5])}...")
-
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env=env,
-        )
+        # Write code to temp file to avoid "Argument list too long" error
+        # when passing large wrapped code via -c flag
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".py", delete=False
+        ) as code_file:
+            code_file.write(code)
+            code_file_path = code_file.name
 
         try:
-            stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                process.communicate(),
-                timeout=timeout,
+            cmd = [self._uv_path, "run"]
+
+            for dep in dependencies:
+                cmd.extend(["--with", dep])
+
+            cmd.extend(["python", code_file_path])
+
+            logger.debug(f"Running uv subprocess: {' '.join(cmd[:5])}...")
+
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env,
             )
-        except asyncio.TimeoutError:
-            process.kill()
-            await process.wait()
-            raise
 
-        stdout = stdout_bytes.decode("utf-8", errors="replace")
-        stderr = stderr_bytes.decode("utf-8", errors="replace")
+            try:
+                stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                    process.communicate(),
+                    timeout=timeout,
+                )
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.wait()
+                raise
 
-        if process.returncode != 0:
-            error_msg = stderr or f"Process exited with code {process.returncode}"
-            raise RuntimeError(error_msg)
+            stdout = stdout_bytes.decode("utf-8", errors="replace")
+            stderr = stderr_bytes.decode("utf-8", errors="replace")
 
-        return stdout
+            if process.returncode != 0:
+                error_msg = stderr or f"Process exited with code {process.returncode}"
+                raise RuntimeError(error_msg)
+
+            return stdout
+        finally:
+            # Clean up temp file
+            try:
+                os.unlink(code_file_path)
+            except OSError:
+                pass
 
     async def _handle_ipc_connection(
         self,
