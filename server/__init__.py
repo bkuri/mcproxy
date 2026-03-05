@@ -56,6 +56,12 @@ async def handle_message(request: Any) -> Dict[str, Any]:
     return await _handle_message(request)
 
 
+@app.get("/health")
+async def health() -> Dict[str, str]:
+    """Health check endpoint for monitoring and load balancers."""
+    return {"status": "healthy", "version": app.version}
+
+
 def set_server_manager(manager: Any) -> None:
     """Set the global server manager reference (for backward compatibility)."""
     _set_server_manager(manager)
