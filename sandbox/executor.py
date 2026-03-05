@@ -286,12 +286,19 @@ class SandboxExecutor:
                         session, result["stash_updates"]
                     )
 
-                return {
+                # Build response with stdout if present
+                response_data = {
                     "status": "success",
                     "result": result.get("result"),
                     "traceback": result.get("traceback"),
                     "execution_time_ms": execution_time_ms,
                 }
+
+                # Include stdout if it has content
+                if result.get("stdout"):
+                    response_data["stdout"] = result.get("stdout")
+
+                return response_data
             except json.JSONDecodeError as e:
                 return {
                     "status": "error",
@@ -395,6 +402,8 @@ class SandboxExecutor:
         return f'''
 import json
 import sys
+import io
+import ast
 
 {RUNTIME_CLASSES}
 
@@ -410,18 +419,56 @@ stash = _StashProxy(_stash_initial)
 
 _result = None
 _error = None
+_stdout_output = ""
 
 try:
     import re
+    
+    # Capture stdout
+    _old_stdout = sys.stdout
+    sys.stdout = io.StringIO()
+    
     local_vars = {{"__builtins__": __builtins__, "api": api, "stash": stash, "parallel": parallel, "json": json, "re": re, "sys": sys}}
-    exec({repr(user_code)}, local_vars, local_vars)
-    if "run" in local_vars and callable(local_vars["run"]):
+    
+    # Try to extract and evaluate last expression for REPL behavior
+    _last_expr_value = None
+    try:
+        _ast = ast.parse({repr(user_code)})
+        if _ast.body:
+            _last_stmt = _ast.body[-1]
+            # If last statement is an expression, capture its value
+            if isinstance(_last_stmt, ast.Expr):
+                # Execute all but the last statement
+                if len(_ast.body) > 1:
+                    _setup_code = ast.Module(body=_ast.body[:-1], type_ignores=[])
+                    exec(compile(_setup_code, '<string>', 'exec'), local_vars, local_vars)
+                # Evaluate the last expression and capture result
+                _last_expr_value = eval(compile(ast.Expression(body=_last_stmt.value), '<string>', 'eval'), local_vars, local_vars)
+            else:
+                # Last statement is not an expression, execute all
+                exec({repr(user_code)}, local_vars, local_vars)
+        else:
+            exec({repr(user_code)}, local_vars, local_vars)
+    except (SyntaxError, ValueError):
+        # Fallback to simple exec if AST parsing fails
+        exec({repr(user_code)}, local_vars, local_vars)
+    
+    # Restore stdout and capture output
+    _stdout_output = sys.stdout.getvalue()
+    sys.stdout = _old_stdout
+    
+    # Determine result: last expression > result variable > run() function
+    if _last_expr_value is not None:
+        _result = _last_expr_value
+    elif "run" in local_vars and callable(local_vars["run"]):
         run_func = local_vars["run"]
         _result = run_func()
     elif "result" in local_vars:
         _result = local_vars["result"]
 except NameError as e:
     import traceback
+    _stdout_output = sys.stdout.getvalue()
+    sys.stdout = _old_stdout
     _error = traceback.format_exc()
     
     # Check for common mistakes
@@ -457,10 +504,13 @@ Use api.call_tool():
 api.manifest()"""
 except Exception as e:
     import traceback
+    _stdout_output = sys.stdout.getvalue()
+    sys.stdout = _old_stdout
     _error = traceback.format_exc()
 
 output = {{
     "result": _result,
+    "stdout": _stdout_output,
     "traceback": _error,
     "stash_updates": stash._get_updates(),
 }}
