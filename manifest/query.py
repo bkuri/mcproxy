@@ -63,7 +63,7 @@ class ManifestQuery:
         min_similarity = 0.4
         
         # At depth=2, limit results to prevent token explosion
-        max_tools_at_depth_2 = 5
+        max_tools_at_depth_2 = max_tools
 
         show_all = max_depth >= 1 and (not query_lower or len(query_lower) <= 1)
 
