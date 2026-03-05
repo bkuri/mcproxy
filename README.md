@@ -243,6 +243,15 @@ api.server("home_assistant").write_file(path="config.yaml", content=json.dumps(c
 api.manifest()                          # All servers/tools with schemas
 api.manifest().servers                  # Server configs with tool definitions
 
+# Inspect tool schemas without calling them
+schema = api.server("wikipedia").search.inspect()
+# Returns: {
+#   "server": "wikipedia",
+#   "name": "search",
+#   "description": "Search Wikipedia articles",
+#   "inputSchema": {"type": "object", "properties": {...}, "required": [...]}
+# }
+
 # Call tools via fluent proxy
 api.server("github").repos.list(owner="octocat")
 api.server("wikipedia").search(query="python")
