@@ -61,6 +61,9 @@ class ManifestQuery:
         servers = self._registry.get_servers(namespace)
         query_lower = query.lower() if query else ""
         min_similarity = 0.4
+        
+        # At depth=2, limit results to prevent token explosion
+        max_tools_at_depth_2 = 10
 
         show_all = max_depth >= 1 and (not query_lower or len(query_lower) <= 1)
 
@@ -128,9 +131,14 @@ class ManifestQuery:
                                 "match_score": best_score,
                             }
 
-                            if max_depth >= 3:
-                                tool_match["description"] = tool_desc
+                            # At depth=2, include description and schema for matched tools
+                            if max_depth >= 2:
+                                tool_match["description"] = tool_desc[:200] if tool_desc else ""  # Truncate long descriptions
                                 tool_match["inputSchema"] = tool.get("inputSchema", {})
+
+                            if max_depth >= 3:
+                                # At depth=3, include full description
+                                tool_match["description"] = tool_desc
 
                             matched_tools.append(tool_match)
                             results["matches"]["tools"].append(
@@ -139,6 +147,12 @@ class ManifestQuery:
 
                     server_entry["tools"] = len(tools)
                     server_entry["matched_tools"] = matched_tools
+
+                # Limit results at depth=2 to prevent token explosion
+                if max_depth == 2 and len(server_entry.get("matched_tools", [])) > max_tools_at_depth_2:
+                    server_entry["matched_tools"] = server_entry["matched_tools"][:max_tools_at_depth_2]
+                    server_entry["_truncated"] = True
+                    server_entry["_total_matched"] = len(matched_tools)
 
                 should_include = (
                     server_match_score >= min_similarity
@@ -153,4 +167,15 @@ class ManifestQuery:
         results["total_matches"] = sum(
             len(results["matches"][k]) for k in results["matches"]
         )
+        
+        # Add warning if results were truncated at depth=2
+        if max_depth == 2:
+            truncated_servers = [r for r in results["results"] if r.get("_truncated")]
+            if truncated_servers:
+                results["warning"] = (
+                    f"Results limited to {max_tools_at_depth_2} tools per server. "
+                    f"Use a more specific query to narrow results, or use max_depth=1 for overview. "
+                    f"Truncated: {', '.join(f"{r['server']} ({r['_total_matched']} tools)" for r in truncated_servers)}"
+                )
+        
         return results
