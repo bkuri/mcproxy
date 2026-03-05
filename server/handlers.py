@@ -200,7 +200,10 @@ async def handle_tools_call(
     logger.info(f"[META_TOOL_CALL] tool={tool_name}{ns_context}{sess_context}")
 
     try:
-        if tool_name == "search":
+        # Support both prefixed (mcproxy_*) and non-prefixed names as aliases
+        canonical_name = tool_name.replace("mcproxy_", "")
+
+        if canonical_name == "search":
             # Get config for search (merge mcproxy.json + MCP client config)
             merged_config = {**_mcproxy_config, **_mcp_config}
             search_config = merged_config.get("search", {})
@@ -216,7 +219,7 @@ async def handle_tools_call(
                 max_tools=max_tools,
             )
 
-        elif tool_name == "execute":
+        elif canonical_name == "execute":
             return await handle_execute(
                 msg_id,
                 arguments,
@@ -232,7 +235,7 @@ async def handle_tools_call(
                 "id": msg_id,
                 "error": {
                     "code": -32601,
-                    "message": f"Unknown tool: {tool_name}. v2.0 only supports 'search' and 'execute'.",
+                    "message": f"Unknown tool: {tool_name}. v2.0 supports 'search', 'execute', 'mcproxy_search', or 'mcproxy_execute'.",
                 },
             }
     except Exception as e:
