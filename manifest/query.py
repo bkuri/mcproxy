@@ -98,6 +98,13 @@ class ManifestQuery:
 
                     server_entry["categories"] = categories
                     server_entry["matched_categories"] = matched_categories
+                    
+                    # Always include tool count at depth >= 1
+                    if namespace:
+                        tools = self._registry.get_tools(server_name, namespace)
+                    else:
+                        tools = self._registry.get_tools(server_name)
+                    server_entry["tools"] = len(tools)
 
                 if max_depth >= 2:
                     tools = self._registry.get_tools(server_name, namespace)

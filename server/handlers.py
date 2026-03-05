@@ -279,7 +279,9 @@ async def handle_search(
 
     param_namespace = params.get("namespace")
     effective_namespace = param_namespace or connection_namespace
-    max_depth = params.get("max_depth", 2)
+    # Default to depth=1 for empty queries (concise), depth=2 for specific queries
+    default_depth = 1 if not query else 2
+    max_depth = params.get("max_depth", default_depth)
 
     log_ns = f" namespace={effective_namespace}" if effective_namespace else ""
     logger.debug(f"[SEARCH] query={query}{log_ns} max_depth={max_depth}")
