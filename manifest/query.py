@@ -26,6 +26,7 @@ class ManifestQuery:
         query: str,
         namespace: Optional[str] = None,
         max_depth: int = 2,
+        max_tools: int = 5,
     ) -> Dict:
         """Search manifest with fuzzy matching.
 
@@ -61,7 +62,7 @@ class ManifestQuery:
         servers = self._registry.get_servers(namespace)
         query_lower = query.lower() if query else ""
         min_similarity = 0.4
-        
+
         # At depth=2, limit results to prevent token explosion
         max_tools_at_depth_2 = max_tools
 
@@ -101,7 +102,7 @@ class ManifestQuery:
 
                     server_entry["categories"] = categories
                     server_entry["matched_categories"] = matched_categories
-                    
+
                     # Always include tool count at depth >= 1
                     if namespace:
                         tools = self._registry.get_tools(server_name, namespace)
@@ -133,7 +134,9 @@ class ManifestQuery:
 
                             # At depth=2, include description and schema for matched tools
                             if max_depth >= 2:
-                                tool_match["description"] = tool_desc[:200] if tool_desc else ""  # Truncate long descriptions
+                                tool_match["description"] = (
+                                    tool_desc[:200] if tool_desc else ""
+                                )  # Truncate long descriptions
                                 tool_match["inputSchema"] = tool.get("inputSchema", {})
 
                             if max_depth >= 3:
@@ -149,8 +152,14 @@ class ManifestQuery:
                     server_entry["matched_tools"] = matched_tools
 
                 # Limit results at depth=2 to prevent token explosion
-                if max_depth == 2 and len(server_entry.get("matched_tools", [])) > max_tools_at_depth_2:
-                    server_entry["matched_tools"] = server_entry["matched_tools"][:max_tools_at_depth_2]
+                if (
+                    max_depth == 2
+                    and len(server_entry.get("matched_tools", []))
+                    > max_tools_at_depth_2
+                ):
+                    server_entry["matched_tools"] = server_entry["matched_tools"][
+                        :max_tools_at_depth_2
+                    ]
                     server_entry["_truncated"] = True
                     server_entry["_total_matched"] = len(matched_tools)
 
@@ -167,7 +176,7 @@ class ManifestQuery:
         results["total_matches"] = sum(
             len(results["matches"][k]) for k in results["matches"]
         )
-        
+
         # Add warning if results were truncated at depth=2
         if max_depth == 2:
             truncated_servers = [r for r in results["results"] if r.get("_truncated")]
@@ -175,7 +184,7 @@ class ManifestQuery:
                 results["warning"] = (
                     f"Results limited to {max_tools_at_depth_2} tools per server. "
                     f"Use a more specific query to narrow results, or use max_depth=1 for overview. "
-                    f"Truncated: {', '.join(f"{r['server']} ({r['_total_matched']} tools)" for r in truncated_servers)}"
+                    f"Truncated: {', '.join(f'{r["server"]} ({r["_total_matched"]} tools)' for r in truncated_servers)}"
                 )
-        
+
         return results
