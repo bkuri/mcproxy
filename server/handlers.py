@@ -117,6 +117,20 @@ META_TOOLS = [
             "required": ["read"],
         },
     },
+    {
+        "name": "list",
+        "description": "List all available MCP servers and their tool counts. "
+        "Use this to discover what servers are available before using execute.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "namespace": {
+                    "type": "string",
+                    "description": "Optional namespace to filter servers",
+                },
+            },
+        },
+    },
 ]
 
 
@@ -219,6 +233,41 @@ async def handle_tools_call(
                 connection_namespace=namespace,
                 capability_registry=capability_registry,
             )
+        elif tool_name == "list":
+            # List all available servers
+            ns = arguments.get("namespace") or namespace
+            
+            if capability_registry is None:
+                return {
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "error": {"code": -32000, "message": "Capability registry not initialized"},
+                }
+            
+            manifest = capability_registry.get_manifest(ns)
+            servers_info = {}
+            
+            for server_name, server_data in manifest.get("servers", {}).items():
+                tools = server_data.get("tools", [])
+                servers_info[server_name] = {
+                    "tools": len(tools),
+                    "description": server_data.get("description", ""),
+                }
+            
+            result = {
+                "namespace": ns or "default",
+                "servers": servers_info,
+                "total_servers": len(servers_info),
+            }
+            
+            return {
+                "jsonrpc": "2.0",
+                "id": msg_id,
+                "result": {
+                    "content": [{"type": "text", "text": json.dumps(result, indent=2)}]
+                },
+            }
+        
         elif tool_name == "execute":
             return await handle_execute(
                 msg_id,
