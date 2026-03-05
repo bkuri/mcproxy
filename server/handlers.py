@@ -2,13 +2,9 @@
 
 import asyncio
 import json
-import re
-import sys
-import traceback as traceback_module
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Optional
 
 from fastapi import Request
-from fastapi.responses import StreamingResponse
 
 from manifest import CapabilityRegistry, ManifestQuery
 from manifest.typescript_gen import generate_compact_instructions
@@ -54,11 +50,9 @@ META_TOOLS = [
     {
         "name": "execute",
         "description": "Execute Python code with tool access via api.server('name').tool(args). "
-        "Use only the servers listed in the initialize instructions. "
-        "Supports two execution modes: "
-        "Deferred (default) - tools execute after code completes, results in tool_results field. "
-        "Sync - use sync=True parameter for immediate execution with inline results. "
-        "Use .inspect() on any tool to get its schema and parameters.",
+        "Tools return results immediately. Use only the servers listed in the initialize instructions. "
+        "Use .inspect() on any tool to get its schema. "
+        "Use parallel([...]) for concurrent execution (rare).",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -76,49 +70,6 @@ META_TOOLS = [
                 },
             },
             "required": ["code"],
-        },
-    },
-    {
-        "name": "sequence",
-        "description": "Execute read and optional transform/write in a single call. "
-        "Use for any tool operation: single reads, file modifications, config updates. "
-        "Write optional - omit for read-only operations.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "read": {
-                    "type": "object",
-                    "description": "Read operation specification",
-                    "properties": {
-                        "server": {"type": "string"},
-                        "tool": {"type": "string"},
-                        "args": {"type": "object"},
-                    },
-                    "required": ["server", "tool"],
-                },
-                "transform": {
-                    "type": "string",
-                    "description": "Python code to transform read_result. "
-                    "'read_result' is extracted content from read step. "
-                    "Must set 'result' variable with write args. Available: json, re, sys, stash. "
-                    "Optional for simple read operations.",
-                },
-                "write": {
-                    "type": "object",
-                    "description": "Write operation specification (optional). "
-                    "Omit for read-only operations.",
-                    "properties": {
-                        "server": {"type": "string"},
-                        "tool": {"type": "string"},
-                    },
-                    "required": ["server", "tool"],
-                },
-                "timeout_secs": {
-                    "type": "number",
-                    "description": "Timeout in seconds (default: 30)",
-                },
-            },
-            "required": ["read"],
         },
     },
 ]
@@ -173,7 +124,7 @@ async def handle_initialize(
     result = {
         "protocolVersion": "2024-11-05",
         "capabilities": {"tools": {}},
-        "serverInfo": {"name": "mcproxy", "version": "2.0.0"},
+        "serverInfo": {"name": "mcproxy", "version": "3.0.0"},
     }
 
     # Generate TypeScript-style instructions from manifest
@@ -267,16 +218,6 @@ async def handle_tools_call(
 
         elif tool_name == "execute":
             return await handle_execute(
-                msg_id,
-                arguments,
-                connection_namespace=namespace,
-                session_id=session_id,
-                sandbox_executor=sandbox_executor,
-                session_manager=session_manager,
-                tool_executor=tool_executor,
-            )
-        elif tool_name == "sequence":
-            return await handle_sequence(
                 msg_id,
                 arguments,
                 connection_namespace=namespace,
@@ -455,36 +396,6 @@ async def handle_execute(
             session=session,
         )
 
-        pending_calls = result.get("deferred_calls", [])
-        if pending_calls and tool_executor:
-            call_results = []
-            for call in pending_calls:
-                server = call.get("server")
-                tool = call.get("tool")
-                args = call.get("args", {})
-                try:
-                    call_result = tool_executor(server, tool, args)
-                    if asyncio.iscoroutine(call_result):
-                        call_result = await call_result
-                    call_results.append(
-                        {
-                            "server": server,
-                            "tool": tool,
-                            "status": "success",
-                            "result": call_result,
-                        }
-                    )
-                except Exception as e:
-                    call_results.append(
-                        {
-                            "server": server,
-                            "tool": tool,
-                            "status": "error",
-                            "error": str(e),
-                        }
-                    )
-            result["tool_results"] = call_results
-
         content = [{"type": "text", "text": json.dumps(result, indent=2)}]
         return {"jsonrpc": "2.0", "id": msg_id, "result": {"content": content}}
 
@@ -495,239 +406,6 @@ async def handle_execute(
             "id": msg_id,
             "error": {"code": -32000, "message": f"Execution failed: {e}"},
         }
-
-
-async def handle_sequence(
-    msg_id: Any,
-    params: Dict[str, Any],
-    connection_namespace: Optional[str] = None,
-    session_id: Optional[str] = None,
-    sandbox_executor: Optional[SandboxExecutor] = None,
-    session_manager: Optional[SessionManager] = None,
-    tool_executor: Optional[Callable] = None,
-) -> Dict[str, Any]:
-    """Handle sequence meta-tool for read-transform-write operations.
-
-    Args:
-        msg_id: JSON-RPC message ID
-        params: Sequence parameters (read, transform, write, timeout_secs)
-        connection_namespace: Namespace from connection context (X-Namespace header)
-        session_id: Optional session ID for session-scoped storage
-        sandbox_executor: Sandbox executor instance
-        session_manager: Session manager instance
-        tool_executor: Callable to execute tools
-
-    Returns:
-        MCP response with read/transform/write results
-    """
-    read_spec = params.get("read")
-    transform_code = params.get("transform")
-    write_spec = params.get("write")
-    timeout_secs = params.get("timeout_secs", 30)
-
-    if not read_spec:
-        return {
-            "jsonrpc": "2.0",
-            "id": msg_id,
-            "error": {"code": -32602, "message": "Missing required parameter: read"},
-        }
-
-    if tool_executor is None:
-        return {
-            "jsonrpc": "2.0",
-            "id": msg_id,
-            "error": {"code": -32000, "message": "Tool executor not initialized"},
-        }
-
-    session: Optional[SessionStash] = None
-    if session_manager is not None:
-        session = await session_manager.get_or_create(session_id)
-
-    result: Dict[str, Any] = {
-        "read_result": None,
-        "transform_result": None,
-        "write_result": None,
-    }
-
-    try:
-        read_server = read_spec.get("server")
-        read_tool = read_spec.get("tool")
-        read_args = read_spec.get("args", {})
-
-        if not read_server or not read_tool:
-            return {
-                "jsonrpc": "2.0",
-                "id": msg_id,
-                "error": {
-                    "code": -32602,
-                    "message": "Read spec requires 'server' and 'tool' fields",
-                },
-            }
-
-        logger.debug(f"[SEQUENCE] READ: server={read_server} tool={read_tool}")
-        read_result_raw = tool_executor(read_server, read_tool, read_args)
-        if asyncio.iscoroutine(read_result_raw):
-            read_result_raw = await read_result_raw
-
-        result["read_result_raw"] = read_result_raw
-
-    except Exception as e:
-        logger.error(f"[SEQUENCE_ERROR] READ step failed: {e}")
-        result["error"] = {"step": "read", "message": str(e)}
-        content = [{"type": "text", "text": json.dumps(result, indent=2)}]
-        return {"jsonrpc": "2.0", "id": msg_id, "result": {"content": content}}
-
-    # Extract data from read result
-    data = _extract_data_from_tool_result(read_result_raw)
-    result["read_result"] = data  # What was actually provided to transform
-
-    # TRANSFORM step (optional)
-    transform_result = data
-    if transform_code:
-        try:
-            local_vars: Dict[str, Any] = {
-                "read_result": data,
-                "json": json,
-                "re": re,
-                "sys": sys,
-                "result": None,
-            }
-
-            if session is not None:
-                local_vars["stash"] = _SyncStashWrapper(session)
-
-            exec(transform_code, {"__builtins__": __builtins__}, local_vars)
-
-            transform_result = local_vars.get("result")
-            if transform_result is None:
-                raise ValueError("Transform code must set 'result' variable")
-
-            result["transform_result"] = transform_result
-            logger.debug(f"[SEQUENCE] TRANSFORM: completed")
-
-        except Exception as e:
-            tb = traceback_module.format_exc()
-            logger.error(f"[SEQUENCE_ERROR] TRANSFORM step failed: {e}")
-            result["error"] = {"step": "transform", "message": str(e), "traceback": tb}
-            content = [{"type": "text", "text": json.dumps(result, indent=2)}]
-            return {"jsonrpc": "2.0", "id": msg_id, "result": {"content": content}}
-    else:
-        # No transform - use data directly
-        result["transform_result"] = data
-
-    # WRITE step (optional - skip if no write spec)
-    if write_spec:
-        try:
-            write_server = write_spec.get("server")
-            write_tool = write_spec.get("tool")
-
-            if not write_server or not write_tool:
-                return {
-                    "jsonrpc": "2.0",
-                    "id": msg_id,
-                    "error": {
-                        "code": -32602,
-                        "message": "Write spec requires 'server' and 'tool' fields",
-                    },
-                }
-
-            logger.debug(f"[SEQUENCE] WRITE: server={write_server} tool={write_tool}")
-            write_result_raw = tool_executor(write_server, write_tool, transform_result)
-            if asyncio.iscoroutine(write_result_raw):
-                write_result_raw = await write_result_raw
-
-            result["write_result"] = write_result_raw
-
-        except Exception as e:
-            logger.error(f"[SEQUENCE_ERROR] WRITE step failed: {e}")
-            result["error"] = {"step": "write", "message": str(e)}
-            content = [{"type": "text", "text": json.dumps(result, indent=2)}]
-            return {"jsonrpc": "2.0", "id": msg_id, "result": {"content": content}}
-
-    content = [{"type": "text", "text": json.dumps(result, indent=2)}]
-    return {"jsonrpc": "2.0", "id": msg_id, "result": {"content": content}}
-
-
-def _extract_data_from_tool_result(tool_result: Any) -> Any:
-    """Extract data from tool result, handling different response formats.
-
-    Args:
-        tool_result: Raw tool result from tool_executor
-
-    Returns:
-        Extracted data (typically string content)
-    """
-    if isinstance(tool_result, str):
-        return tool_result
-
-    if isinstance(tool_result, dict):
-        if "content" in tool_result:
-            content = tool_result["content"]
-            if isinstance(content, list) and len(content) > 0:
-                first_content = content[0]
-                if isinstance(first_content, dict) and "text" in first_content:
-                    return first_content["text"]
-            return content
-
-        if "result" in tool_result:
-            inner = tool_result["result"]
-            if isinstance(inner, dict):
-                if "content" in inner:
-                    content = inner["content"]
-                    if isinstance(content, list) and len(content) > 0:
-                        first_content = content[0]
-                        if isinstance(first_content, dict) and "text" in first_content:
-                            return first_content["text"]
-                    return content
-            return inner
-
-    return tool_result
-
-
-class _SyncStashWrapper:
-    """Synchronous wrapper for async SessionStash to use in transform exec."""
-
-    def __init__(self, session: SessionStash):
-        self._session = session
-        self._cache: Dict[str, Any] = {}
-
-    def get(self, key: str, default: Any = None) -> Any:
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                return self._cache.get(key, default)
-            else:
-                result = loop.run_until_complete(self._session.get(key))
-                return result if result is not None else default
-        except Exception:
-            return self._cache.get(key, default)
-
-    def put(self, key: str, value: Any, ttl_seconds: Optional[int] = None) -> None:
-        self._cache[key] = value
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                asyncio.create_task(self._session.put(key, value, ttl_seconds))
-            else:
-                loop.run_until_complete(self._session.put(key, value, ttl_seconds))
-        except Exception:
-            pass
-
-    def has(self, key: str) -> bool:
-        return key in self._cache or self.get(key) is not None
-
-    def delete(self, key: str) -> bool:
-        if key in self._cache:
-            del self._cache[key]
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                asyncio.create_task(self._session.delete(key))
-                return True
-            else:
-                return loop.run_until_complete(self._session.delete(key))
-        except Exception:
-            return False
 
 
 def create_message_handler(

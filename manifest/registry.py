@@ -41,7 +41,7 @@ class CapabilityRegistry:
         """
         self._server_tools = servers_tools
         manifest: Dict[str, Any] = {
-            "version": "2.0",
+            "version": "3.0",
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "servers": {},
             "tools_by_server": {},

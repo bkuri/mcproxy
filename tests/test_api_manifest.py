@@ -23,7 +23,7 @@ class TestCapabilityRegistry:
         registry = CapabilityRegistry()
         manifest = registry.build(sample_servers_tools)
 
-        assert manifest["version"] == "2.0"
+        assert manifest["version"] == "3.0"
         assert "generated_at" in manifest
         assert manifest["server_count"] == 4
         assert manifest["tool_count"] == 8
@@ -34,7 +34,7 @@ class TestCapabilityRegistry:
         registry = CapabilityRegistry()
         manifest = registry.build({})
 
-        assert manifest["version"] == "2.0"
+        assert manifest["version"] == "3.0"
         assert manifest["server_count"] == 0
         assert manifest["tool_count"] == 0
 
@@ -554,7 +554,7 @@ class TestCapabilityRegistryCache:
             cache_file = tmp_path / "manifest.json"
             old_time = datetime.utcnow() - timedelta(hours=2)
             cache_data = {
-                "manifest": {"version": "2.0"},
+                "manifest": {"version": "3.0"},
                 "namespaces": {},
                 "cached_at": old_time.isoformat(),
             }

@@ -734,7 +734,7 @@ class TestExecuteAccessControl:
         with patch.object(
             executor,
             "_run_uv_subprocess_async",
-            return_value='{"result": null, "traceback": "Access denied to \'filesystem\'\\n", "deferred_calls": [], "stash_updates": []}',
+            return_value='{"result": null, "traceback": "Access denied to \'filesystem\'\\n", "stash_updates": []}',
         ):
             result = await executor.execute(code, namespace="browser")
 
@@ -756,7 +756,7 @@ class TestExecuteAccessControl:
         with patch.object(
             executor,
             "_run_uv_subprocess_async",
-            return_value='{"result": null, "traceback": "Access denied to \'filesystem\'\\n", "deferred_calls": [], "stash_updates": []}',
+            return_value='{"result": null, "traceback": "Access denied to \'filesystem\'\\n", "stash_updates": []}',
         ):
             result = await executor.execute(code, namespace="browser")
 
@@ -773,21 +773,17 @@ class TestExecuteAccessControl:
         # browser namespace CAN access playwright
         code = """
 async def run():
-    result = await api.server("playwright").navigate(url="http://example.com")
+    result = api.server("playwright").navigate(url="http://example.com")
 """
         with patch.object(
             executor,
             "_run_uv_subprocess_async",
-            return_value='{"result": null, "traceback": null, "deferred_calls": [{"server": "playwright", "tool": "navigate", "args": {"url": "http://example.com"}}], "stash_updates": []}',
+            return_value='{"result": null, "traceback": null, "stash_updates": []}',
         ):
             result = await executor.execute(code, namespace="browser")
 
             assert result["status"] == "success"
             assert not result.get("traceback")
-            # Tool calls are collected as deferred, not executed immediately
-            assert len(result.get("deferred_calls", [])) == 1
-            assert result["deferred_calls"][0]["server"] == "playwright"
-            assert result["deferred_calls"][0]["tool"] == "navigate"
 
     @pytest.mark.asyncio
     async def test_execute_blocks_cross_namespace_access(
@@ -802,7 +798,7 @@ async def run():
         with patch.object(
             executor,
             "_run_uv_subprocess_async",
-            return_value='{"result": null, "traceback": "Access denied to \'system\'\\n", "deferred_calls": [], "stash_updates": []}',
+            return_value='{"result": null, "traceback": "Access denied to \'system\'\\n", "stash_updates": []}',
         ):
             result = await executor.execute(code, namespace="browser")
 
@@ -818,20 +814,17 @@ async def run():
         # privileged extends browser, so can access playwright
         code = """
 async def run():
-    result = await api.server("playwright").navigate(url="http://example.com")
+    result = api.server("playwright").navigate(url="http://example.com")
 """
         with patch.object(
             executor,
             "_run_uv_subprocess_async",
-            return_value='{"result": null, "traceback": null, "deferred_calls": [{"server": "playwright", "tool": "navigate", "args": {"url": "http://example.com"}}], "stash_updates": []}',
+            return_value='{"result": null, "traceback": null, "stash_updates": []}',
         ):
             result = await executor.execute(code, namespace="privileged")
 
             assert result["status"] == "success"
             assert not result.get("traceback")
-            # Tool calls are collected as deferred, not executed immediately
-            assert len(result.get("deferred_calls", [])) == 1
-            assert result["deferred_calls"][0]["server"] == "playwright"
 
     @pytest.mark.asyncio
     async def test_execute_sync_call_works(self, sandbox_manifest: AccessControlConfig):
@@ -844,13 +837,9 @@ async def run():
         with patch.object(
             executor,
             "_run_uv_subprocess_async",
-            return_value='{"result": null, "traceback": null, "deferred_calls": [{"server": "playwright", "tool": "navigate", "args": {"url": "http://example.com"}}], "stash_updates": []}',
+            return_value='{"result": null, "traceback": null, "stash_updates": []}',
         ):
             result = await executor.execute(code, namespace="browser")
 
             assert result["status"] == "success"
             assert not result.get("traceback")
-            # Tool calls are still collected
-            assert len(result.get("deferred_calls", [])) == 1
-            assert result["deferred_calls"][0]["server"] == "playwright"
-            assert result["deferred_calls"][0]["tool"] == "navigate"

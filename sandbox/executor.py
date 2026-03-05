@@ -7,18 +7,7 @@ Features:
 - Timeout enforcement
 - Memory limits
 - Structured error responses
-- Sync and deferred tool execution modes
-
-Sync Mode (Phase 4):
-- Tools can be executed synchronously via Unix Domain Socket IPC
-- Use sync=True: api.server("name").tool(arg=value, sync=True)
-- Results available inline during code execution
-- Lower latency for conditional logic and data transformation
-
-Deferred Mode (default):
-- Tools are queued and executed after code completes
-- Results appear in tool_results field of response
-- Better for batch operations and parallel execution
+- Synchronous tool execution with immediate results
 """
 
 import asyncio
@@ -56,7 +45,7 @@ class SandboxExecutor:
     - Timeout enforcement
     - Memory limits
     - Structured error responses
-    - Unix Domain Socket IPC for tool calls
+    - Unix Domain Socket IPC for synchronous tool calls
     """
 
     def __init__(
@@ -301,7 +290,6 @@ class SandboxExecutor:
                     "status": "success",
                     "result": result.get("result"),
                     "traceback": result.get("traceback"),
-                    "deferred_calls": result.get("deferred_calls", []),
                     "execution_time_ms": execution_time_ms,
                 }
             except json.JSONDecodeError as e:
@@ -371,7 +359,7 @@ class SandboxExecutor:
             session: Optional SessionStash for session-scoped storage
 
         Returns:
-            Wrapped code that includes api, stash, and forge APIs
+            Wrapped code that includes api, stash, and parallel APIs
         """
         manifest_json = json.dumps(
             {
@@ -410,31 +398,26 @@ import sys
 
 {RUNTIME_CLASSES}
 
-_executor = _DeferredCallCollector()
+_PARALLEL_MAX_CONCURRENCY = {self._max_concurrency}
+_ipc_client = _IPCClient()
 _manifest_data = {manifest_json}
 _manifest = _Manifest(_manifest_data)
 _registry = _CapabilityRegistry(_manifest)
 _access_control = _NamespaceAccessControl(_registry)
-_global_sync = _executor.is_sync_mode()
-api = _APIProxy("{namespace}", _access_control, _executor, _manifest, global_sync=_global_sync)
+api = _APIProxy("{namespace}", _access_control, _ipc_client, _manifest)
 _stash_initial = {stash_data_json}
 stash = _StashProxy(_stash_initial)
-forge = _ForgeProxy(max_concurrency={self._max_concurrency})
 
 _result = None
 _error = None
 
 try:
-    import asyncio
     import re
-    local_vars = {{"__builtins__": __builtins__, "api": api, "stash": stash, "asyncio": asyncio, "forge": forge, "json": json, "re": re, "sys": sys}}
+    local_vars = {{"__builtins__": __builtins__, "api": api, "stash": stash, "parallel": parallel, "json": json, "re": re, "sys": sys}}
     exec({repr(user_code)}, local_vars, local_vars)
     if "run" in local_vars and callable(local_vars["run"]):
         run_func = local_vars["run"]
-        if asyncio.iscoroutinefunction(run_func):
-            _result = asyncio.run(run_func())
-        else:
-            _result = run_func()
+        _result = run_func()
 except NameError as e:
     import traceback
     _error = traceback.format_exc()
@@ -451,30 +434,25 @@ except NameError as e:
             server, tool = parts
             _error = f"""NameError: '{{tool_name}}' is not a function.
 
-Use 'await api.server()' in an async run() function:
+Use api.server() to call tools:
 
-    async def run():
-        result = await api.server("{{server}}").{{tool}}(...)
-    
-    # Results appear in tool_results field of response
+    result = api.server("{{server}}").{{tool}}(...)
 
 Available: api.manifest()"""
     elif "call_tool" in error_str and "is not defined" in error_str:
         # Pattern 2: call_tool without api prefix
         _error = """NameError: 'call_tool' is not defined.
 
-Use 'await api.call_tool' in an async run() function:
+Use api.call_tool():
 
-    async def run():
-        result = await api.call_tool("server", "tool", {{"arg": "value"}})"""
-    elif re.search(r"name '(server|forge|manifest)' is not defined", error_str):
-        # Pattern 3: Using 'server' or 'forge' directly
+    result = api.call_tool("server", "tool", {{"arg": "value"}})"""
+    elif re.search(r"name '(server|manifest)' is not defined", error_str):
+        # Pattern 3: Using 'server' directly
         _error = """NameError: Use the 'api' object to access tools.
 
-    async def run():
-        result = await api.server("name").tool(args)
-    
-    api.manifest()"""
+    result = api.server("name").tool(args)
+
+api.manifest()"""
 except Exception as e:
     import traceback
     _error = traceback.format_exc()
@@ -482,17 +460,8 @@ except Exception as e:
 output = {{
     "result": _result,
     "traceback": _error,
-    "deferred_calls": _executor.get_deferred_calls(),
     "stash_updates": stash._get_updates(),
 }}
-
-# Add warning if pending calls exist without async pattern
-if output["deferred_calls"] and _error is None:
-    output["warning"] = (
-        "Tool calls queued but results not available in code. "
-        "Use 'async def run():' with 'await' to call tools. "
-        "Results appear in tool_results field of response."
-    )
 
 print(json.dumps(output))
 '''

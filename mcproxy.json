@@ -43,7 +43,5 @@
     "min_words": 2,
     "max_tools": 5
   },
-  "parallel_execution": {
-    "max_concurrency": 5
-  }
+  "max_parallel": 5
 }

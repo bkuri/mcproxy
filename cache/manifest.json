@@ -1,66 +1,38 @@
 {
   "manifest": {
-    "version": "2.0",
-    "generated_at": "2026-03-05T19:03:58.732170+00:00",
+    "version": "3.0",
+    "generated_at": "2026-03-05T19:53:03.216587+00:00",
     "servers": {
-      "playwright": {
-        "tool_count": 2,
-        "categories": [
-          "Playwright"
-        ],
-        "status": "active"
-      },
-      "filesystem": {
-        "tool_count": 2,
-        "categories": [
-          "Filesystem"
-        ],
-        "status": "active"
-      },
-      "crypto": {
+      "valid": {
         "tool_count": 1,
-        "categories": [
-          "Crypto"
-        ],
+        "categories": [],
+        "status": "active"
+      },
+      "invalid": {
+        "tool_count": 1,
+        "categories": [],
         "status": "active"
       }
     },
     "tools_by_server": {
-      "playwright": [
+      "valid": [
         {
-          "name": "playwright__navigate",
-          "description": "Navigate to URL",
-          "inputSchema": {}
-        },
-        {
-          "name": "playwright__click",
-          "description": "Click element",
+          "name": "tool1",
+          "description": "",
           "inputSchema": {}
         }
       ],
-      "filesystem": [
+      "invalid": [
         {
-          "name": "filesystem__read",
-          "description": "Read file",
-          "inputSchema": {}
-        },
-        {
-          "name": "filesystem__write",
-          "description": "Write file",
-          "inputSchema": {}
-        }
-      ],
-      "crypto": [
-        {
-          "name": "crypto__hash",
-          "description": "Hash data",
+          "name": "valid",
+          "description": "",
           "inputSchema": {}
         }
       ]
     },
-    "tool_count": 5,
-    "server_count": 3
+    "tool_count": 2,
+    "server_count": 2
   },
   "namespaces": {},
-  "cached_at": "2026-03-05T19:03:58.732193+00:00"
+  "cached_at": "2026-03-05T19:53:03.216679+00:00"
 }

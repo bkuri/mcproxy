@@ -89,7 +89,7 @@ class ServerProcess:
                     "params": {
                         "protocolVersion": "2024-11-05",
                         "capabilities": {},
-                        "clientInfo": {"name": "mcproxy", "version": "2.0.0"},
+                        "clientInfo": {"name": "mcproxy", "version": "3.0.0"},
                     },
                 }
 

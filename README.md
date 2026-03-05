@@ -216,8 +216,7 @@ This means the LLM can start with lightweight queries and fetch detailed schemas
 
 **MCP Tools** (exposed to clients like opencode):
 - `mcproxy_search` - Discover tools by query (namespace optional)
-- `mcproxy_execute` - Run code with tool access (namespace required)
-- `mcproxy_sequence` - Read-modify-write in single call (for file/config edits)
+- `mcproxy_execute` - Run code with immediate tool results (namespace required)
 
 **Sandbox API** (inside execute):
 
@@ -227,26 +226,19 @@ Server names vary by environment. Check the "Available servers and tools" sectio
 
 ```python
 # CORRECT: Use servers from the instructions
-api.server("wikipedia").search(query="python")
+data = api.server("wikipedia").search(query="python")
 
 # WRONG: Guessing server names
 api.server("playwright").navigate(...)  # Error: may not exist in this environment
 ```
 
-**For read-modify-write patterns, use `mcproxy_sequence`:**
 ```python
-mcproxy_sequence(
-    read={"server": "home_assistant", "tool": "ha_read_file", "args": {"path": "config.yaml"}},
-    transform='''
-    config = json.loads(read_result)
-    config['new_key'] = 'new_value'
-    result = {"path": "config.yaml", "content": json.dumps(config)}
-    ''',
-    write={"server": "home_assistant", "tool": "ha_write_file"}
-)
-```
+# Tools return results immediately:
+data = api.server("home_assistant").read_file(path="config.yaml")
+config = json.loads(data)
+config["new_key"] = "new_value"
+api.server("home_assistant").write_file(path="config.yaml", content=json.dumps(config))
 
-```python
 # Optional: Get full tool details
 api.manifest()                          # All servers/tools with schemas
 api.manifest().servers                  # Server configs with tool definitions
@@ -258,15 +250,11 @@ api.server("wikipedia").search(query="python")
 # Or direct
 api.call_tool("github", "repos.list", {"owner": "octocat"})
 
-# Parallel execution
-results = await forge.parallel([
+# Parallel execution (rare)
+results = parallel([
     lambda: api.server("github").repos.list(),
     lambda: api.server("wikipedia").search("python"),
-])
-
-# Session stash (caching across calls)
-stash.put("search_results", data, ttl=3600)
-results = stash.get("search_results")
+], max_concurrency=5)
 ```
 
 Namespaces control access. Use `X-Namespace: dev` header or `/sse/dev` endpoint.

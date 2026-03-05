@@ -1,4 +1,4 @@
-"""FastAPI SSE server for MCProxy v2.0.
+"""FastAPI SSE server for MCProxy v3.0.
 
 Exposes MCP protocol over Server-Sent Events (SSE).
 Meta-tools: search and execute for api_manifest/api_sandbox integration.
@@ -33,7 +33,7 @@ from server.lifecycle import (
 
 logger = get_logger(__name__)
 
-app = FastAPI(title="MCProxy", version="2.0.0")
+app = FastAPI(title="MCProxy", version="3.0.0")
 
 
 _handle_message = create_message_handler(
@@ -66,7 +66,7 @@ def init_v2_components(
     tool_executor: Optional[Callable] = None,
     servers_tools: Optional[Dict[str, List]] = None,
 ) -> None:
-    """Initialize v2.0 components: CapabilityRegistry and SandboxExecutor.
+    """Initialize v3.0 components: CapabilityRegistry and SandboxExecutor.
 
     Args:
         config: Optional configuration dict for components

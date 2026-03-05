@@ -1,6 +1,6 @@
 # MCProxy - Agent Guidelines
 
-> **Status**: Phase 3 - Namespace-Aware Routing
+> **Status**: v3.0 - Sync-Only Execution
 > 
 > MCProxy is a lightweight MCP gateway that aggregates multiple stdio MCP servers through namespaced SSE endpoints.
 
@@ -280,7 +280,7 @@ Server names vary by environment. Check the "Available servers and tools" sectio
 
 ```python
 # CORRECT: Use servers from the instructions
-api.server("wikipedia").search(query="python")
+data = api.server("wikipedia").search(query="python")
 api.server("sequential_thinking").sequentialthinking(thought="...")
 
 # WRONG: Guessing server names
@@ -288,19 +288,15 @@ api.server("playwright").navigate(...)  # Error: may not exist in this environme
 ```
 
 ```python
+# Tools return results immediately:
+data = api.server("home_assistant").read_file(path="config.yaml")
+config = json.loads(data)
+config["new_key"] = "new_value"
+api.server("home_assistant").write_file(path="config.yaml", content=json.dumps(config))
+
 # Optional: Get full tool details
 api.manifest()                          # All servers/tools with schemas
 api.manifest().servers                  # Server configs with tool definitions
-
-# Parallel execution
-results = await forge.parallel([
-    lambda: api.server("github").repos.list(),
-    lambda: api.server("wikipedia").search("python"),
-])
-
-# Session stash (caching across calls)
-stash.put("search_results", data, ttl=3600)
-results = stash.get("search_results")
 ```
 
 Namespaces control access. Use `X-Namespace: dev` header or `/sse/dev` endpoint.
@@ -324,127 +320,41 @@ tool_info = api.server("sequential_thinking").sequentialthinking.inspect()
 required_params = tool_info["inputSchema"].get("required", [])
 ```
 
-### Sync vs Deferred Execution
+### Execution Model
 
-MCProxy supports two execution modes:
-
-#### Deferred Mode (Default)
-Tools are queued and executed after your code completes. Results appear in the `tool_results` field of the response.
+All tool calls execute synchronously with immediate results available in your code:
 
 ```python
-# Deferred - results in tool_results field
-api.server("wikipedia").search(query="python")
-
-# With await in async run()
-async def run():
-    result = await api.server("wikipedia").search(query="python")
-    # result is a receipt, actual data in tool_results
-```
-
-**When to use deferred mode:**
-- Multiple tool calls that can run in parallel
-- Don't need tool output during code execution
-- Simpler syntax for batch operations
-
-#### Sync Mode
-Tools execute immediately via Unix Domain Socket IPC. Results are available inline during code execution.
-
-```python
-# Sync - immediate execution, result available now
-result = api.server("wikipedia").search(query="python", sync=True)
-# result contains actual tool output
-
-# Use sync when you need the result for further processing
-data = api.server("github").repos.list(sync=True)
+# Tools return results immediately
+data = api.server("wikipedia").search(query="python")
 if data["count"] > 10:
-    filtered = [r for r in data["repos"] if r["stars"] > 100]
+    filtered = [r for r in data["results"] if r["stars"] > 100]
     result = filtered
 ```
 
-**When to use sync mode:**
-- Need tool output for conditional logic
-- Chaining operations where output feeds into next step
-- Transforming data before returning
+**Note: Each `execute` call is isolated** - variables don't persist between calls (fresh subprocess each time).
 
-**Tradeoffs:**
-| Mode | Latency | Use Case | Result Location |
-|------|---------|----------|-----------------|
-| Deferred | Lower (parallel) | Batch operations | `tool_results` field |
-| Sync | Higher (serial) | Conditional logic | Inline return value |
+### Parallel Execution (Rare)
 
-### Chained Operations (Read-Modify-Write)
-
-**Use `sequence` for any tool operation:**
+For concurrent tool calls, use `parallel()`:
 
 ```python
-# Single read (write optional)
-mcproxy_sequence(
-    read={"server": "wikipedia", "tool": "search", "args": {"query": "python"}}
-)
-
-# Read + transform (write optional)
-mcproxy_sequence(
-    read={"server": "home_assistant", "tool": "ha_read_file", "args": {"path": "config.yaml"}},
-    transform='''
-    config = json.loads(read_result)
-    result = config["some_key"]
-    '''
-)
-
-# Read-modify-write
-mcproxy_sequence(
-    read={"server": "home_assistant", "tool": "ha_read_file", "args": {"path": "config.yaml"}},
-    transform='''
-    config = json.loads(read_result)
-    config['new_key'] = 'new_value'
-    result = {"path": "config.yaml", "content": json.dumps(config)}
-    ''',
-    write={"server": "home_assistant", "tool": "ha_write_file"}
-)
+results = parallel([
+    lambda: api.server("github").repos.list(),
+    lambda: api.server("wikipedia").search("python"),
+])
 ```
 
-**Transform rules:**
-- `read_result` is the extracted content from your read operation
-- Must set `result` variable with write args
-- Available: `json`, `re`, `sys`, `stash`
-
-**Example transforms:**
-```python
-# File content → parse JSON → extract key
-result = json.loads(read_result)["some_key"]
-
-# File content → modify → write args
-config = json.loads(read_result)
-config['new'] = 'value'
-result = {"path": "config.yaml", "content": json.dumps(config)}
-
-# String replacement
-result = {"path": "file.js", "content": read_result.replace("old", "new")}
-```
-
-### Execution Model (Single Operations)
-
-For single operations, use `execute` directly:
+Results are returned as a list of dicts:
 
 ```python
-# Deferred mode (default)
-api.server("wikipedia").search(query="python")
-
-# Sync mode (immediate)
-result = api.server("wikipedia").search(query="python", sync=True)
+[
+    {"status": "fulfilled", "result": ...},
+    {"status": "rejected", "error": "..."}
+]
 ```
 
-Results appear in the response's `tool_results` field after execution (deferred mode) or inline (sync mode).
-
-**Note: Each `execute` call is isolated** - variables don't persist between calls (fresh subprocess each time). Use `stash` for cross-call state:
-
-```python
-# First call - save data
-stash.put("previous_result", data, ttl=3600)
-
-# Later call - retrieve data
-previous = stash.get("previous_result")
-```
+**Note:** `max_parallel` is configured in mcproxy.json (default: 5). Agents cannot override this for security reasons.
 
 ### Chained Operations (Read-Modify-Write)
 

@@ -79,30 +79,29 @@ def generate_compact_instructions(
     min_words_display = "any" if min_words <= 0 else f"{min_words}+"
 
     lines = [
-        "MCProxy v2 Code Mode API",
+        "MCProxy v3 Code Mode API",
         "",
         "MCP Tools:",
-        "  mcproxy_sequence  - Read OR read-modify-write (RECOMMENDED)",
         "  mcproxy_search    - Discover servers/tools (empty = summary)",
-        "  mcproxy_execute   - Python code with tool access",
+        "  mcproxy_execute   - Python code with immediate tool results",
         "",
-        "=== SEQUENCE (for all operations) ===",
-        "  # Simple read:",
-        "  mcproxy_sequence(read={'server': 's', 'tool': 't', 'args': {...}})",
+        "=== EXECUTE ===",
+        "  # Tools return results immediately:",
+        '  mcproxy_execute(code="""',
+        "    data = api.server('s').read_file(path='f.yaml')",
+        "    config = json.loads(data)",
+        "    config['key'] = 'value'",
+        "    api.server('s').write_file(path='f.yaml', content=json.dumps(config))",
+        '  """)',
         "",
-        "  # Read-modify-write:",
-        "  mcproxy_sequence(",
-        "    read={'server': 'ha', 'tool': 'ha_read_file', 'args': {'path': 'f.yaml'}},",
-        '    transform=\'d=json.loads(read_result); d["k"]="v"; result={"path":"f.yaml","content":json.dumps(d)}\',',
-        "    write={'server': 'ha', 'tool': 'ha_write_file'}",
-        "  )",
-        "",
-        "=== EXECUTE (for complex logic) ===",
-        "  # Deferred (default) - batch ops, results in tool_results field:",
-        "  mcproxy_execute(code=\"api.server('s').tool(arg=val)\")",
-        "",
-        "  # Sync mode - immediate result for conditional logic:",
-        "  mcproxy_execute(code=\"r = api.server('s').tool(arg=val, sync=True); if r: ...\")",
+        "  # Parallel execution (rare):",
+        '  mcproxy_execute(code="""',
+        "    results = parallel([",
+        "      lambda: api.server('s1').tool1(),",
+        "      lambda: api.server('s2').tool2(),",
+        "    ])",
+        "    # max_parallel configured in mcproxy.json",
+        '  """)',
         "",
         "  # Tool inspection:",
         "  mcproxy_execute(code=\"schema = api.server('s').tool.inspect()\")",
@@ -157,15 +156,5 @@ def generate_compact_instructions(
         for server_name, server_info in sorted(servers.items()):
             tool_count = server_info.get("tool_count", 0)
             lines.append(f"  {server_name}: {tool_count} tools")
-
-    lines.extend(
-        [
-            "",
-            "Other:",
-            "  stash.put/get(key, val, ttl?)  - Cross-call state",
-            "  forge.parallel([...])          - Concurrent calls",
-            "  Hyphenated tools → underscores: get-coins → get_coins()",
-        ]
-    )
 
     return "\n".join(lines)
