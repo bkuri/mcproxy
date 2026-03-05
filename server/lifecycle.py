@@ -56,8 +56,19 @@ def init_v2_components(
     event_hook_manager = EventHookManager(capability_registry)
 
     if tool_executor and capability_registry:
+        # Build servers dict with tools included
+        servers_with_tools = {}
+        tools_by_server = capability_registry._manifest.get("tools_by_server", {})
+        for server_name, server_info in capability_registry._manifest.get(
+            "servers", {}
+        ).items():
+            servers_with_tools[server_name] = {
+                **server_info,
+                "tools": tools_by_server.get(server_name, []),
+            }
+
         sandbox_manifest = AccessControlConfig(
-            servers=capability_registry._manifest.get("servers", {}),
+            servers=servers_with_tools,
             namespaces=capability_registry._namespaces,
             groups=capability_registry._groups,
         )
