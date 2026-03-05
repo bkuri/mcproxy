@@ -418,6 +418,8 @@ try:
     if "run" in local_vars and callable(local_vars["run"]):
         run_func = local_vars["run"]
         _result = run_func()
+    elif "result" in local_vars:
+        _result = local_vars["result"]
 except NameError as e:
     import traceback
     _error = traceback.format_exc()
