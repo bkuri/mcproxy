@@ -612,6 +612,9 @@ print(json.dumps(output))
             server = request.get("server")
             tool = request.get("tool")
             args = request.get("args", {})
+            logger.info(
+                f"[IPC_EXEC] server={server} tool={tool} args={args} type={type(args)}"
+            )
 
             try:
                 result = self._tool_executor(server, tool, args)

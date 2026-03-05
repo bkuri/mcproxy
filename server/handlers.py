@@ -198,6 +198,9 @@ async def handle_tools_call(
     ns_context = f" namespace={namespace}" if namespace else ""
     sess_context = f" session={session_id}" if session_id else ""
     logger.info(f"[META_TOOL_CALL] tool={tool_name}{ns_context}{sess_context}")
+    logger.info(
+        f"[HTTP_HANDLER_ARGS] tool={tool_name} arguments={arguments} type={type(arguments)}"
+    )
 
     try:
         # Support both prefixed (mcproxy_*) and non-prefixed names as aliases

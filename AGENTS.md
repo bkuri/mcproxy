@@ -21,24 +21,24 @@ pip install -r requirements.txt
 python main.py --log
 
 # Run with custom config
-python main.py --config mcproxy.json --port 12009
+python main.py --config mcproxy.json --port 12010
 
 # Run as native MCP server (stdio mode)
 python main.py --stdio --config mcproxy.json
 
 # Test SSE endpoint (default namespace)
-curl -N http://localhost:12009/sse
+curl -N http://localhost:12010/sse
 
 # Test namespaced SSE endpoint
-curl -N http://localhost:12009/sse/dev
+curl -N http://localhost:12010/sse/dev
 
 # Test tools list
-curl -X POST http://localhost:12009/sse \
+curl -X POST http://localhost:12010/sse \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 
 # Test with namespace header
-curl -X POST http://localhost:12009/sse \
+curl -X POST http://localhost:12010/sse \
   -H "Content-Type: application/json" \
   -H "X-Namespace: dev" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
@@ -51,7 +51,7 @@ docker build -t localhost/mcproxy:latest .
 
 # Run container locally
 docker run -d --name mcproxy \
-  -p 12009:12009 \
+  -p 12010:12010 \
   -v $(pwd)/config:/app/config:Z \
   -v $(pwd)/.env:/app/.env:ro \
   localhost/mcproxy:latest
@@ -151,15 +151,15 @@ pytest tests/
 
 # Manual testing
 # 1. Start server: python main.py --log
-# 2. Test SSE: curl -N http://localhost:12009/sse
-# 3. Connect Claude Desktop to http://localhost:12009/sse
+# 2. Test SSE: curl -N http://localhost:12010/sse
+# 3. Connect Claude Desktop to http://localhost:12010/sse
 # 4. Execute tools, verify aggregation
 ```
 
 ## Key Constraints
 
 - **Python 3.11+** required
-- **Port 12009** (hardcoded in spec)
+- **Port 12010** (hardcoded in spec)
 - **Memory**: <100MB total
 - **Reload latency**: 1-2 seconds acceptable
 - **No authentication** (internal use only)
@@ -195,7 +195,7 @@ pytest tests/
 ### Command-Line Options
 ```bash
 --log              # Log to stdout instead of syslog
---port PORT        # Port to listen on (default: 12009)
+--port PORT        # Port to listen on (default: 12010)
 --config PATH      # Path to config file
 --host HOST        # Host to bind to (default: 0.0.0.0)
 --no-reload        # Disable hot-reload

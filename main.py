@@ -61,7 +61,7 @@ Examples:
     )
 
     parser.add_argument(
-        "--port", type=int, default=12009, help="Port to listen on (default: 12009)"
+        "--port", type=int, default=12010, help="Port to listen on (default: 12010)"
     )
 
     parser.add_argument(

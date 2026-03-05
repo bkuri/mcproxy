@@ -213,6 +213,9 @@ class ServerProcess:
             }
 
             logger.debug(f"[CALL_TOOL_SEND] Sending request to {self.name}")
+            logger.info(
+                f"[CALL_TOOL_ARGS] tool={tool_name} arguments={arguments} type={type(arguments)}"
+            )
             await self._send_message(request)
 
             timeout_seconds = LONG_RUNNING_TOOL_TIMEOUT_SECS
