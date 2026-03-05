@@ -169,6 +169,48 @@ curl -X POST http://localhost:12010/message \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"execute","arguments":{"namespace":"public","code":"async def run():\n    return await api.server(\"github\").repos.list(owner=\"octocat\")"}}}'
 ```
 
+### REPL-Like Execution (New in v2.1)
+
+The `execute` tool now behaves like a Python REPL, enabling agents to:
+
+**1. Use bare expressions (return values):**
+```python
+# Code: Last expression becomes the result
+x = 10
+y = 20
+x + y  # ← Returns 30
+```
+
+**2. Capture print() output:**
+```python
+# Code: Print output is captured in response
+print("Debug info:", value)
+print(f"Result: {calculation}")
+42  # ← Returns 42, output visible in response
+
+# Response includes:
+# {
+#   "result": 42,
+#   "stdout": "Debug info: ...\nResult: ...\n"
+# }
+```
+
+**3. Multi-step tool operations:**
+```python
+# Read: Call tool and capture result
+data = api.server("wikipedia").search(query="Python")
+
+# Modify: Transform the data
+import json
+parsed = json.loads(data["content"][0]["text"])
+count = len(parsed["content"])
+
+# Write/Return: Get result inline
+f"Found {count} results"
+```
+
+**Result Priority**: Last expression > `result` variable > `run()` function
+
 ---
 
 ## Code Mode Architecture
