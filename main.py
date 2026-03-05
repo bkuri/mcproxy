@@ -19,6 +19,7 @@ from config_watcher import ConfigError, load_config
 from logging_config import get_logger, setup_logging
 from mcp_server import create_mcp_server
 from server import app, init_v2_components, refresh_manifest, set_server_manager
+from server.handlers import set_mcproxy_config
 
 logger = get_logger(__name__)
 
@@ -105,6 +106,9 @@ Examples:
         logger.info(
             f"Loaded configuration with {len(config.get('servers', []))} servers"
         )
+
+        # Pass config to handlers for search settings
+        set_mcproxy_config(config)
     except ConfigError as e:
         logger.error(f"Failed to load configuration: {e}")
         sys.exit(1)

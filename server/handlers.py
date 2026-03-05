@@ -120,8 +120,28 @@ META_TOOLS = [
 ]
 
 
-# Global config storage for MCP client config
+# Global config storage for MCP client config and mcproxy.json config
 _mcp_config: dict = {}
+_mcproxy_config: dict = {}
+
+
+def set_mcproxy_config(config: dict) -> None:
+    """Set the mcproxy.json configuration.
+
+    Args:
+        config: Configuration dictionary from mcproxy.json
+    """
+    global _mcproxy_config
+    _mcproxy_config = config
+
+
+def get_mcproxy_config() -> dict:
+    """Get the mcproxy.json configuration.
+
+    Returns:
+        Configuration dictionary from mcproxy.json
+    """
+    return _mcproxy_config
 
 
 async def handle_initialize(
@@ -157,8 +177,10 @@ async def handle_initialize(
         logger.debug(
             f"Manifest has {len(capability_registry._manifest.get('tools_by_server', {}))} servers with tools"
         )
+        # Merge configs: mcproxy.json takes precedence over MCP client config
+        merged_config = {**_mcp_config, **_mcproxy_config}
         instructions = generate_compact_instructions(
-            capability_registry._manifest, config=_mcp_config
+            capability_registry._manifest, config=merged_config
         )
         result["instructions"] = instructions
     else:
@@ -224,8 +246,9 @@ async def handle_tools_call(
 
     try:
         if tool_name == "search":
-            # Get config for search
-            search_config = _mcp_config.get("search", {})
+            # Get config for search (merge mcproxy.json + MCP client config)
+            merged_config = {**_mcproxy_config, **_mcp_config}
+            search_config = merged_config.get("search", {})
             min_words = search_config.get("min_words", 2)
             max_tools = search_config.get("max_tools", 5)
 
