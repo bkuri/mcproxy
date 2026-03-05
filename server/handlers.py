@@ -120,6 +120,9 @@ META_TOOLS = [
 ]
 
 
+# Global config storage for MCP client config
+_mcp_config: dict = {}
+
 async def handle_initialize(
     msg_id: Any,
     params: Dict[str, Any],
@@ -130,13 +133,18 @@ async def handle_initialize(
 
     Args:
         msg_id: JSON-RPC message ID
-        params: Initialize parameters
+        params: Initialize parameters (may contain 'config' from MCP client)
         namespace: Optional namespace context from X-Namespace header
         capability_registry: Capability registry instance
 
     Returns:
         MCP initialize response
     """
+    # Store client config if provided
+    global _mcp_config
+    if isinstance(params, dict) and params.get("config"):
+        _mcp_config = params.get("config", {})
+    
     result = {
         "protocolVersion": "2024-11-05",
         "capabilities": {"tools": {}},
@@ -213,11 +221,18 @@ async def handle_tools_call(
 
     try:
         if tool_name == "search":
+            # Get config for search
+            search_config = _mcp_config.get("search", {})
+            min_words = search_config.get("min_words", 2)
+            max_tools = search_config.get("max_tools", 5)
+            
             return await handle_search(
                 msg_id,
                 arguments,
                 connection_namespace=namespace,
                 capability_registry=capability_registry,
+                min_words=min_words,
+                max_tools=max_tools,
             )
         
         elif tool_name == "execute":
@@ -279,11 +294,15 @@ async def handle_search(
 
     param_namespace = params.get("namespace")
     effective_namespace = param_namespace or connection_namespace
-    # Minimum query length to trigger depth=2 (schemas)
-    MIN_QUERY_LENGTH = 3
+    # Get depth override from params
+    effective_depth = params.get("depth", None)
+    
+    # Count words in query
+    query_words = query.strip().split() if query else []
+    
     # Default to depth=1 for empty/short queries (concise), depth=2 for specific queries
-    default_depth = 1 if not query or len(query) < MIN_QUERY_LENGTH else 2
-    max_depth = params.get("max_depth", default_depth)
+    default_depth = 1 if not query or len(query_words) < min_words else 2
+    max_depth = effective_depth if effective_depth is not None else default_depth
 
     log_ns = f" namespace={effective_namespace}" if effective_namespace else ""
     logger.debug(f"[SEARCH] query={query}{log_ns} max_depth={max_depth}")
