@@ -74,6 +74,10 @@ def generate_compact_instructions(
     min_words = search_config.get("min_words", 2)
     max_tools = search_config.get("max_tools", 5)
 
+    # Format tool limit for display
+    max_tools_display = "all" if max_tools <= 0 else f"top {max_tools}"
+    min_words_display = "any" if min_words <= 0 else f"{min_words}+"
+
     lines = [
         "MCProxy v2 Code Mode API",
         "",
@@ -86,7 +90,7 @@ def generate_compact_instructions(
         f"Search behavior:",
         f"  - Empty query → depth=1 (server names + counts only)",
         f"  - 1 word → depth=1 (no schemas, fast discovery)",
-        f"  - {min_words}+ words → depth=2 (top {max_tools} matching tools with schemas + warning)",
+        f"  - {min_words_display} words → depth=2 ({max_tools_display} matching tools with schemas + warning)",
         f"  - Override with depth=3 for all tools with full schemas",
         "",
         "MCP Tools:",

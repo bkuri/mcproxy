@@ -331,7 +331,11 @@ async def handle_search(
     query_words = query.strip().split() if query else []
 
     # Default to depth=1 for empty/short queries (concise), depth=2 for specific queries
-    default_depth = 1 if not query or len(query_words) < min_words else 2
+    # min_words <= 0 means always use depth=2
+    if min_words <= 0:
+        default_depth = 2  # Always show schemas
+    else:
+        default_depth = 1 if not query or len(query_words) < min_words else 2
     max_depth = effective_depth if effective_depth is not None else default_depth
 
     log_ns = f" namespace={effective_namespace}" if effective_namespace else ""

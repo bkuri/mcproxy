@@ -152,8 +152,10 @@ class ManifestQuery:
                     server_entry["matched_tools"] = matched_tools
 
                 # Limit results at depth=2 to prevent token explosion
+                # max_tools <= 0 means unlimited (show all)
                 if (
                     max_depth == 2
+                    and max_tools_at_depth_2 > 0
                     and len(server_entry.get("matched_tools", []))
                     > max_tools_at_depth_2
                 ):
