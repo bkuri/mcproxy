@@ -157,7 +157,9 @@ async def handle_initialize(
         logger.debug(
             f"Manifest has {len(capability_registry._manifest.get('tools_by_server', {}))} servers with tools"
         )
-        instructions = generate_compact_instructions(capability_registry._manifest)
+        instructions = generate_compact_instructions(
+            capability_registry._manifest, config=_mcp_config
+        )
         result["instructions"] = instructions
     else:
         logger.warning("No capability registry or manifest available during initialize")

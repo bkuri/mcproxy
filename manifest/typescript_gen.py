@@ -1,6 +1,6 @@
 """Generate TypeScript definitions from manifest for LLM type awareness."""
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 
 def json_schema_to_ts(schema: Dict[str, Any], indent: int = 0) -> str:
@@ -50,7 +50,9 @@ def json_schema_to_ts(schema: Dict[str, Any], indent: int = 0) -> str:
 
 
 def generate_compact_instructions(
-    manifest: Dict[str, Any], detailed: bool = False
+    manifest: Dict[str, Any],
+    detailed: bool = False,
+    config: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Generate compact instructions with TypeScript-style type hints.
 
@@ -59,12 +61,18 @@ def generate_compact_instructions(
     Args:
         manifest: Manifest dictionary
         detailed: If True, include parameter signatures for all tools
+        config: Optional config dict with search settings (min_words, max_tools)
 
     Returns:
         Compact instruction string
     """
     tools_by_server = manifest.get("tools_by_server", {})
     servers = manifest.get("servers", {})
+
+    # Get config values with defaults
+    search_config = (config or {}).get("search", {})
+    min_words = search_config.get("min_words", 2)
+    max_tools = search_config.get("max_tools", 5)
 
     lines = [
         "MCProxy v2 Code Mode API",
@@ -74,6 +82,12 @@ def generate_compact_instructions(
         "Discovery:",
         "  mcproxy_search()                        # List servers + tool counts (concise)",
         "  mcproxy_search(query='what you need')   # Search for specific tools",
+        "",
+        f"Search behavior:",
+        f"  - Empty query → depth=1 (server names + counts only)",
+        f"  - 1 word → depth=1 (no schemas, fast discovery)",
+        f"  - {min_words}+ words → depth=2 (top {max_tools} matching tools with schemas + warning)",
+        f"  - Override with depth=3 for all tools with full schemas",
         "",
         "MCP Tools:",
         "  mcproxy_sequence  - Single reads OR read-modify-write (RECOMMENDED)",
