@@ -101,8 +101,19 @@ def refresh_manifest(servers_tools: Dict[str, List]) -> None:
     capability_registry.build(servers_tools)
 
     if sandbox_executor and capability_registry:
+        # Build servers dict with tools included (same as init_v2_components)
+        servers_with_tools = {}
+        tools_by_server = capability_registry._manifest.get("tools_by_server", {})
+        for server_name, server_info in capability_registry._manifest.get(
+            "servers", {}
+        ).items():
+            servers_with_tools[server_name] = {
+                **server_info,
+                "tools": tools_by_server.get(server_name, []),
+            }
+
         sandbox_executor._manifest = AccessControlConfig(
-            servers=capability_registry._manifest.get("servers", {}),
+            servers=servers_with_tools,
             namespaces=capability_registry._namespaces,
             groups=capability_registry._groups,
         )
