@@ -54,7 +54,11 @@ META_TOOLS = [
     {
         "name": "execute",
         "description": "Execute Python code with tool access via api.server('name').tool(args). "
-        "Use only the servers listed in the initialize instructions.",
+        "Use only the servers listed in the initialize instructions. "
+        "Supports two execution modes: "
+        "Deferred (default) - tools execute after code completes, results in tool_results field. "
+        "Sync - use sync=True parameter for immediate execution with inline results. "
+        "Use .inspect() on any tool to get its schema and parameters.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -444,7 +448,7 @@ async def handle_execute(
         if session_manager is not None:
             session = await session_manager.get_or_create(session_id)
 
-        result = sandbox_executor.execute(
+        result = await sandbox_executor.execute(
             code,
             namespace=effective_namespace,
             timeout_secs=timeout_secs,

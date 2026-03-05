@@ -445,11 +445,12 @@ class TestErrorRecovery:
         assert not allowed
         assert "not found" in error
 
-    def test_executor_returns_structured_error(self):
+    @pytest.mark.asyncio
+    async def test_executor_returns_structured_error(self):
         manifest = AccessControlConfig(servers={}, namespaces={})
         executor = SandboxExecutor(manifest, lambda *args: None)
 
-        result = executor.execute("import os", "namespace")
+        result = await executor.execute("import os", "namespace")
 
         assert result["status"] == "error"
         assert result["result"] is None

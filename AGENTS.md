@@ -305,6 +305,73 @@ results = stash.get("search_results")
 
 Namespaces control access. Use `X-Namespace: dev` header or `/sse/dev` endpoint.
 
+### Tool Inspection
+
+Inspect tool schemas before calling:
+
+```python
+# Get tool schema and description
+schema = api.server("wikipedia").search.inspect()
+# Returns: {
+#   "server": "wikipedia",
+#   "name": "search",
+#   "description": "Search Wikipedia articles",
+#   "inputSchema": {"type": "object", "properties": {...}}
+# }
+
+# Check what parameters a tool expects
+tool_info = api.server("sequential_thinking").sequentialthinking.inspect()
+required_params = tool_info["inputSchema"].get("required", [])
+```
+
+### Sync vs Deferred Execution
+
+MCProxy supports two execution modes:
+
+#### Deferred Mode (Default)
+Tools are queued and executed after your code completes. Results appear in the `tool_results` field of the response.
+
+```python
+# Deferred - results in tool_results field
+api.server("wikipedia").search(query="python")
+
+# With await in async run()
+async def run():
+    result = await api.server("wikipedia").search(query="python")
+    # result is a receipt, actual data in tool_results
+```
+
+**When to use deferred mode:**
+- Multiple tool calls that can run in parallel
+- Don't need tool output during code execution
+- Simpler syntax for batch operations
+
+#### Sync Mode
+Tools execute immediately via Unix Domain Socket IPC. Results are available inline during code execution.
+
+```python
+# Sync - immediate execution, result available now
+result = api.server("wikipedia").search(query="python", sync=True)
+# result contains actual tool output
+
+# Use sync when you need the result for further processing
+data = api.server("github").repos.list(sync=True)
+if data["count"] > 10:
+    filtered = [r for r in data["repos"] if r["stars"] > 100]
+    result = filtered
+```
+
+**When to use sync mode:**
+- Need tool output for conditional logic
+- Chaining operations where output feeds into next step
+- Transforming data before returning
+
+**Tradeoffs:**
+| Mode | Latency | Use Case | Result Location |
+|------|---------|----------|-----------------|
+| Deferred | Lower (parallel) | Batch operations | `tool_results` field |
+| Sync | Higher (serial) | Conditional logic | Inline return value |
+
 ### Chained Operations (Read-Modify-Write)
 
 **Use `sequence` for any tool operation:**
@@ -360,10 +427,14 @@ result = {"path": "file.js", "content": read_result.replace("old", "new")}
 For single operations, use `execute` directly:
 
 ```python
+# Deferred mode (default)
 api.server("wikipedia").search(query="python")
+
+# Sync mode (immediate)
+result = api.server("wikipedia").search(query="python", sync=True)
 ```
 
-Results appear in the response's `tool_results` field after execution.
+Results appear in the response's `tool_results` field after execution (deferred mode) or inline (sync mode).
 
 **Note: Each `execute` call is isolated** - variables don't persist between calls (fresh subprocess each time). Use `stash` for cross-call state:
 

@@ -419,7 +419,8 @@ class TestSequenceValidation:
         assert "result" in result
         content = json.loads(result["result"]["content"][0]["text"])
         assert "error" not in content
-        assert content["read_result"]["content"] == "original"
+        # read_result is extracted from {"content": "original"} -> "original"
+        assert content["read_result"] == "original"
         assert content["transform_result"] == "original"  # Passed through
 
     @pytest.mark.asyncio

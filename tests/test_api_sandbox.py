@@ -1,5 +1,6 @@
 """Tests for api_sandbox.py - Sandbox Executor and Access Control."""
 
+import asyncio
 import pytest
 from typing import Any, Dict, List
 from unittest.mock import patch, MagicMock
@@ -449,67 +450,72 @@ class TestDynamicProxy:
 class TestSandboxExecutorExecute:
     """Tests for SandboxExecutor.execute()."""
 
-    def test_execute_returns_validation_error(
+    @pytest.mark.asyncio
+    async def test_execute_returns_validation_error(
         self, sandbox_manifest: AccessControlConfig
     ):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
-        result = executor.execute("import os", "browser")
+        result = await executor.execute("import os", "browser")
 
         assert result["status"] == "error"
         assert "Validation error" in result["traceback"]
         assert result["result"] is None
 
-    def test_execute_result_format(self, sandbox_manifest: AccessControlConfig):
+    @pytest.mark.asyncio
+    async def test_execute_result_format(self, sandbox_manifest: AccessControlConfig):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
 
         with patch.object(
             executor,
-            "_run_uv_subprocess",
+            "_run_uv_subprocess_async",
             return_value='{"result": 42, "traceback": null}',
         ):
-            result = executor.execute("x = 1", "browser")
+            result = await executor.execute("x = 1", "browser")
 
             assert result["status"] == "success"
             assert result["result"] == 42
             assert "execution_time_ms" in result
 
-    def test_execute_timeout(self, sandbox_manifest: AccessControlConfig):
-        import subprocess
-
+    @pytest.mark.asyncio
+    async def test_execute_timeout(self, sandbox_manifest: AccessControlConfig):
         executor = SandboxExecutor(
             sandbox_manifest, lambda *args: None, default_timeout_secs=1
         )
 
         with patch.object(
             executor,
-            "_run_uv_subprocess",
-            side_effect=subprocess.TimeoutExpired(cmd=[], timeout=1),
+            "_run_uv_subprocess_async",
+            side_effect=asyncio.TimeoutError(),
         ):
-            result = executor.execute("x = 1", "browser")
+            result = await executor.execute("x = 1", "browser")
 
             assert result["status"] == "error"
             assert "timed out" in result["traceback"]
 
-    def test_execute_process_error(self, sandbox_manifest: AccessControlConfig):
-        import subprocess
-
+    @pytest.mark.asyncio
+    async def test_execute_process_error(self, sandbox_manifest: AccessControlConfig):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
 
         with patch.object(
             executor,
-            "_run_uv_subprocess",
-            side_effect=subprocess.CalledProcessError(1, [], stderr="Error output"),
+            "_run_uv_subprocess_async",
+            side_effect=RuntimeError("Error output"),
         ):
-            result = executor.execute("x = 1", "browser")
+            result = await executor.execute("x = 1", "browser")
 
             assert result["status"] == "error"
             assert "Error output" in result["traceback"]
 
-    def test_execute_json_decode_error(self, sandbox_manifest: AccessControlConfig):
+    @pytest.mark.asyncio
+    async def test_execute_json_decode_error(
+        self, sandbox_manifest: AccessControlConfig
+    ):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
 
-        with patch.object(executor, "_run_uv_subprocess", return_value="invalid json{"):
-            result = executor.execute("x = 1", "browser")
+        with patch.object(
+            executor, "_run_uv_subprocess_async", return_value="invalid json{"
+        ):
+            result = await executor.execute("x = 1", "browser")
 
             assert result["status"] == "error"
             assert "No JSON output found" in result["traceback"]
@@ -594,33 +600,43 @@ class TestCreateSandboxExecutor:
 class TestErrorFormat:
     """Tests for structured error response format."""
 
-    def test_error_response_has_traceback(self, sandbox_manifest: AccessControlConfig):
+    @pytest.mark.asyncio
+    async def test_error_response_has_traceback(
+        self, sandbox_manifest: AccessControlConfig
+    ):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
-        result = executor.execute("import os", "browser")
+        result = await executor.execute("import os", "browser")
 
         assert "traceback" in result
         assert isinstance(result["traceback"], str)
         assert len(result["traceback"]) > 0
 
-    def test_error_response_has_status(self, sandbox_manifest: AccessControlConfig):
+    @pytest.mark.asyncio
+    async def test_error_response_has_status(
+        self, sandbox_manifest: AccessControlConfig
+    ):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
-        result = executor.execute("import os", "browser")
+        result = await executor.execute("import os", "browser")
 
         assert "status" in result
         assert result["status"] == "error"
 
-    def test_error_response_has_execution_time(
+    @pytest.mark.asyncio
+    async def test_error_response_has_execution_time(
         self, sandbox_manifest: AccessControlConfig
     ):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
-        result = executor.execute("import os", "browser")
+        result = await executor.execute("import os", "browser")
 
         assert "execution_time_ms" in result
         assert isinstance(result["execution_time_ms"], int)
 
-    def test_error_response_result_is_none(self, sandbox_manifest: AccessControlConfig):
+    @pytest.mark.asyncio
+    async def test_error_response_result_is_none(
+        self, sandbox_manifest: AccessControlConfig
+    ):
         executor = SandboxExecutor(sandbox_manifest, lambda *args: None)
-        result = executor.execute("import os", "browser")
+        result = await executor.execute("import os", "browser")
 
         assert "result" in result
         assert result["result"] is None
@@ -705,7 +721,8 @@ class TestSuggestToolFix:
 class TestExecuteAccessControl:
     """Tests for execute sandbox enforcing namespace access control."""
 
-    def test_execute_blocks_unauthorized_server(
+    @pytest.mark.asyncio
+    async def test_execute_blocks_unauthorized_server(
         self, sandbox_manifest: AccessControlConfig
     ):
         """Execute should block calls to servers outside the namespace."""
@@ -713,13 +730,20 @@ class TestExecuteAccessControl:
 
         # browser namespace can access playwright but NOT filesystem
         code = 'result = api.server("filesystem").read_file(path="/etc/passwd")'
-        result = executor.execute(code, namespace="browser")
 
-        # Access denied is raised as PermissionError in traceback
-        assert "Access denied" in result["traceback"]
-        assert "filesystem" in result["traceback"]
+        with patch.object(
+            executor,
+            "_run_uv_subprocess_async",
+            return_value='{"result": null, "traceback": "Access denied to \'filesystem\'\\n", "deferred_calls": [], "stash_updates": []}',
+        ):
+            result = await executor.execute(code, namespace="browser")
 
-    def test_execute_blocks_unauthorized_call_tool(
+            # Access denied is raised as PermissionError in traceback
+            assert "Access denied" in result["traceback"]
+            assert "filesystem" in result["traceback"]
+
+    @pytest.mark.asyncio
+    async def test_execute_blocks_unauthorized_call_tool(
         self, sandbox_manifest: AccessControlConfig
     ):
         """Execute should block call_tool to servers outside the namespace."""
@@ -728,12 +752,19 @@ class TestExecuteAccessControl:
         code = (
             'result = api.call_tool("filesystem", "read_file", {"path": "/etc/passwd"})'
         )
-        result = executor.execute(code, namespace="browser")
 
-        assert "Access denied" in result["traceback"]
-        assert "filesystem" in result["traceback"]
+        with patch.object(
+            executor,
+            "_run_uv_subprocess_async",
+            return_value='{"result": null, "traceback": "Access denied to \'filesystem\'\\n", "deferred_calls": [], "stash_updates": []}',
+        ):
+            result = await executor.execute(code, namespace="browser")
 
-    def test_execute_allows_authorized_server(
+            assert "Access denied" in result["traceback"]
+            assert "filesystem" in result["traceback"]
+
+    @pytest.mark.asyncio
+    async def test_execute_allows_authorized_server(
         self, sandbox_manifest: AccessControlConfig
     ):
         """Execute should allow calls to servers within the namespace."""
@@ -744,16 +775,22 @@ class TestExecuteAccessControl:
 async def run():
     result = await api.server("playwright").navigate(url="http://example.com")
 """
-        result = executor.execute(code, namespace="browser")
+        with patch.object(
+            executor,
+            "_run_uv_subprocess_async",
+            return_value='{"result": null, "traceback": null, "deferred_calls": [{"server": "playwright", "tool": "navigate", "args": {"url": "http://example.com"}}], "stash_updates": []}',
+        ):
+            result = await executor.execute(code, namespace="browser")
 
-        assert result["status"] == "success"
-        assert not result.get("traceback")
-        # Tool calls are collected as pending, not executed immediately
-        assert len(result.get("pending_calls", [])) == 1
-        assert result["pending_calls"][0]["server"] == "playwright"
-        assert result["pending_calls"][0]["tool"] == "navigate"
+            assert result["status"] == "success"
+            assert not result.get("traceback")
+            # Tool calls are collected as deferred, not executed immediately
+            assert len(result.get("deferred_calls", [])) == 1
+            assert result["deferred_calls"][0]["server"] == "playwright"
+            assert result["deferred_calls"][0]["tool"] == "navigate"
 
-    def test_execute_blocks_cross_namespace_access(
+    @pytest.mark.asyncio
+    async def test_execute_blocks_cross_namespace_access(
         self, sandbox_manifest: AccessControlConfig
     ):
         """Execute should block accessing servers from different isolated namespaces."""
@@ -761,11 +798,18 @@ async def run():
 
         # privileged namespace extends browser, but browser cannot access privileged
         code = 'result = api.server("system").admin_action()'
-        result = executor.execute(code, namespace="browser")
 
-        assert "Access denied" in result["traceback"]
+        with patch.object(
+            executor,
+            "_run_uv_subprocess_async",
+            return_value='{"result": null, "traceback": "Access denied to \'system\'\\n", "deferred_calls": [], "stash_updates": []}',
+        ):
+            result = await executor.execute(code, namespace="browser")
 
-    def test_execute_namespace_inheritance_works(
+            assert "Access denied" in result["traceback"]
+
+    @pytest.mark.asyncio
+    async def test_execute_namespace_inheritance_works(
         self, sandbox_manifest: AccessControlConfig
     ):
         """Namespaces that extend others should inherit access."""
@@ -776,25 +820,37 @@ async def run():
 async def run():
     result = await api.server("playwright").navigate(url="http://example.com")
 """
-        result = executor.execute(code, namespace="privileged")
+        with patch.object(
+            executor,
+            "_run_uv_subprocess_async",
+            return_value='{"result": null, "traceback": null, "deferred_calls": [{"server": "playwright", "tool": "navigate", "args": {"url": "http://example.com"}}], "stash_updates": []}',
+        ):
+            result = await executor.execute(code, namespace="privileged")
 
-        assert result["status"] == "success"
-        assert not result.get("traceback")
-        # Tool calls are collected as pending, not executed immediately
-        assert len(result.get("pending_calls", [])) == 1
-        assert result["pending_calls"][0]["server"] == "playwright"
+            assert result["status"] == "success"
+            assert not result.get("traceback")
+            # Tool calls are collected as deferred, not executed immediately
+            assert len(result.get("deferred_calls", [])) == 1
+            assert result["deferred_calls"][0]["server"] == "playwright"
 
-    def test_execute_sync_call_works(self, sandbox_manifest: AccessControlConfig):
+    @pytest.mark.asyncio
+    async def test_execute_sync_call_works(self, sandbox_manifest: AccessControlConfig):
         """Execute should work with sync calls (without async/await)."""
         executor = SandboxExecutor(sandbox_manifest, lambda *args: {"result": "ok"})
 
         # Sync call without async/await
         code = 'result = api.server("playwright").navigate(url="http://example.com")'
-        result = executor.execute(code, namespace="browser")
 
-        assert result["status"] == "success"
-        assert not result.get("traceback")
-        # Tool calls are still collected
-        assert len(result.get("pending_calls", [])) == 1
-        assert result["pending_calls"][0]["server"] == "playwright"
-        assert result["pending_calls"][0]["tool"] == "navigate"
+        with patch.object(
+            executor,
+            "_run_uv_subprocess_async",
+            return_value='{"result": null, "traceback": null, "deferred_calls": [{"server": "playwright", "tool": "navigate", "args": {"url": "http://example.com"}}], "stash_updates": []}',
+        ):
+            result = await executor.execute(code, namespace="browser")
+
+            assert result["status"] == "success"
+            assert not result.get("traceback")
+            # Tool calls are still collected
+            assert len(result.get("deferred_calls", [])) == 1
+            assert result["deferred_calls"][0]["server"] == "playwright"
+            assert result["deferred_calls"][0]["tool"] == "navigate"

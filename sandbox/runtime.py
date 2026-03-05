@@ -5,6 +5,19 @@ They cannot import from the parent process - all classes must be self-contained.
 
 The classes work with JSON-serialized manifest data (not live objects) and use
 _DeferredCallCollector that collects deferred calls instead of executing tools directly.
+
+Sync Mode (Phase 4):
+- When MCPROXY_IPC_SOCK env var exists, tools can be called synchronously
+- Synchronous calls execute immediately via Unix Domain Socket IPC
+- Use sync=True parameter: api.server("name").tool(arg=value, sync=True)
+- Results are available inline during code execution
+- Deferred mode (default): Tools are queued and executed after code completes
+- Deferred results appear in the tool_results field of the response
+
+Tool Inspection (Phase 4):
+- Use .inspect() to get tool schema and metadata
+- Example: schema = api.server("name").tool.inspect()
+- Returns: server, name, description, inputSchema
 """
 
 RUNTIME_CLASSES = """

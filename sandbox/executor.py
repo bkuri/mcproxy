@@ -1,11 +1,35 @@
-"""Sandbox executor for secure code execution."""
+"""Sandbox executor for secure code execution.
 
+Features:
+- Async execution with Unix Domain Socket IPC
+- Pre-execution code validation
+- Blocked imports and builtins
+- Timeout enforcement
+- Memory limits
+- Structured error responses
+- Sync and deferred tool execution modes
+
+Sync Mode (Phase 4):
+- Tools can be executed synchronously via Unix Domain Socket IPC
+- Use sync=True: api.server("name").tool(arg=value, sync=True)
+- Results available inline during code execution
+- Lower latency for conditional logic and data transformation
+
+Deferred Mode (default):
+- Tools are queued and executed after code completes
+- Results appear in tool_results field of response
+- Better for batch operations and parallel execution
+"""
+
+import asyncio
 import ast
 import json
-import subprocess
+import os
+import shutil
+import tempfile
 import time
 import unicodedata
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
 
 from code_validator import validate_code_for_dangerous_patterns
 from logging_config import get_logger
@@ -32,12 +56,13 @@ class SandboxExecutor:
     - Timeout enforcement
     - Memory limits
     - Structured error responses
+    - Unix Domain Socket IPC for tool calls
     """
 
     def __init__(
         self,
         manifest: "AccessControlConfig",
-        tool_executor: Any,
+        tool_executor: Callable,
         uv_path: str = "uv",
         default_timeout_secs: int = 30,
         max_concurrency: int = 5,
@@ -46,7 +71,7 @@ class SandboxExecutor:
 
         Args:
             manifest: Sandbox manifest for access control
-            tool_executor: Callable to execute tools
+            tool_executor: Async callable to execute tools
             uv_path: Path to uv binary
             default_timeout_secs: Default execution timeout
             max_concurrency: Maximum concurrent parallel executions
@@ -56,6 +81,9 @@ class SandboxExecutor:
         self._uv_path = uv_path
         self._default_timeout_secs = default_timeout_secs
         self._max_concurrency = max_concurrency
+        self._ipc_server: Optional[asyncio.Server] = None
+        self._ipc_sock_path: Optional[str] = None
+        self._ipc_temp_dir: Optional[str] = None
 
     def validate_code(self, code: str) -> tuple[bool, str]:
         """Validate code before execution.
@@ -193,7 +221,7 @@ class SandboxExecutor:
 
         return None
 
-    def execute(
+    async def execute(
         self,
         code: str,
         namespace: str,
@@ -201,7 +229,7 @@ class SandboxExecutor:
         dependencies: Optional[List[str]] = None,
         session: Optional[Any] = None,
     ) -> Dict[str, Any]:
-        """Execute user code in a uv subprocess.
+        """Execute user code in a uv subprocess with IPC support.
 
         Args:
             code: Python code to execute
@@ -228,14 +256,13 @@ class SandboxExecutor:
 
         wrapped_code = self._wrap_code(code, namespace, access_control, session)
 
-        env = self._build_env(namespace, access_control)
-
         start_time = time.perf_counter()
 
         try:
-            stdout = self._run_uv_subprocess(
+            stdout = await self._run_uv_subprocess_async(
                 wrapped_code,
-                env,
+                namespace,
+                access_control,
                 timeout,
                 dependencies or [],
             )
@@ -266,7 +293,9 @@ class SandboxExecutor:
                 result = json.loads(json_line)
 
                 if session is not None and "stash_updates" in result:
-                    self._apply_stash_updates(session, result["stash_updates"])
+                    await self._apply_stash_updates_async(
+                        session, result["stash_updates"]
+                    )
 
                 return {
                     "status": "success",
@@ -283,21 +312,12 @@ class SandboxExecutor:
                     "execution_time_ms": execution_time_ms,
                 }
 
-        except subprocess.TimeoutExpired:
+        except asyncio.TimeoutError:
             execution_time_ms = int((time.perf_counter() - start_time) * 1000)
             return {
                 "status": "error",
                 "result": None,
                 "traceback": f"Execution timed out after {timeout} seconds",
-                "execution_time_ms": execution_time_ms,
-            }
-
-        except subprocess.CalledProcessError as e:
-            execution_time_ms = int((time.perf_counter() - start_time) * 1000)
-            return {
-                "status": "error",
-                "result": None,
-                "traceback": e.stderr or f"Process exited with code {e.returncode}",
                 "execution_time_ms": execution_time_ms,
             }
 
@@ -311,36 +331,29 @@ class SandboxExecutor:
                 "execution_time_ms": execution_time_ms,
             }
 
-    def _apply_stash_updates(self, session: Any, updates: List[Dict[str, Any]]) -> None:
+        finally:
+            await self._cleanup_ipc()
+
+    async def _apply_stash_updates_async(
+        self, session: Any, updates: List[Dict[str, Any]]
+    ) -> None:
         """Apply stash updates from sandbox execution to session.
 
         Args:
             session: SessionStash instance
             updates: List of stash operations from sandbox
         """
-        import asyncio
-
-        async def _apply():
-            for update in updates:
-                op = update.get("op")
-                key = update.get("key")
-                if op == "put":
-                    value = update.get("value")
-                    ttl = update.get("ttl_seconds")
-                    await session.put(key, value, ttl_seconds=ttl)
-                elif op == "delete":
-                    await session.delete(key)
-                elif op == "clear":
-                    await session.clear()
-
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                asyncio.create_task(_apply())
-            else:
-                loop.run_until_complete(_apply())
-        except Exception as e:
-            logger.error(f"[STASH] Failed to apply updates: {e}")
+        for update in updates:
+            op = update.get("op")
+            key = update.get("key")
+            if op == "put":
+                value = update.get("value")
+                ttl = update.get("ttl_seconds")
+                await session.put(key, value, ttl_seconds=ttl)
+            elif op == "delete":
+                await session.delete(key)
+            elif op == "clear":
+                await session.clear()
 
     def _wrap_code(
         self,
@@ -376,8 +389,6 @@ class SandboxExecutor:
 
         stash_data_json = "{}"
         if session is not None:
-            import asyncio
-
             try:
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
@@ -404,7 +415,8 @@ _manifest_data = {manifest_json}
 _manifest = _Manifest(_manifest_data)
 _registry = _CapabilityRegistry(_manifest)
 _access_control = _NamespaceAccessControl(_registry)
-api = _APIProxy("{namespace}", _access_control, _executor, _manifest)
+_global_sync = _executor.is_sync_mode()
+api = _APIProxy("{namespace}", _access_control, _executor, _manifest, global_sync=_global_sync)
 _stash_initial = {stash_data_json}
 stash = _StashProxy(_stash_initial)
 forge = _ForgeProxy(max_concurrency={self._max_concurrency})
@@ -489,34 +501,41 @@ print(json.dumps(output))
         self,
         namespace: str,
         access_control: NamespaceAccessControl,
+        ipc_sock_path: Optional[str] = None,
     ) -> Dict[str, str]:
         """Build clean environment for subprocess.
 
         Args:
             namespace: Namespace for context
             access_control: Access control instance
+            ipc_sock_path: Optional Unix socket path for IPC
 
         Returns:
             Clean environment dict
         """
-        return {
+        env = {
             "PYTHONIOENCODING": "utf-8",
             "PYTHONUNBUFFERED": "1",
             "SANDBOX_NAMESPACE": namespace,
         }
+        if ipc_sock_path:
+            env["MCPROXY_IPC_SOCK"] = ipc_sock_path
+        return env
 
-    def _run_uv_subprocess(
+    async def _run_uv_subprocess_async(
         self,
         code: str,
-        env: Dict[str, str],
+        namespace: str,
+        access_control: NamespaceAccessControl,
         timeout: int,
         dependencies: List[str],
     ) -> str:
-        """Run code in uv subprocess.
+        """Run code in uv subprocess with IPC support.
 
         Args:
             code: Python code to execute
-            env: Environment variables
+            namespace: Namespace for access control
+            access_control: Access control instance
             timeout: Timeout in seconds
             dependencies: List of pip dependencies
 
@@ -524,9 +543,20 @@ print(json.dumps(output))
             stdout from subprocess
 
         Raises:
-            subprocess.TimeoutExpired: If timeout exceeded
-            subprocess.CalledProcessError: If process fails
+            asyncio.TimeoutError: If timeout exceeded
+            RuntimeError: If process fails
         """
+        self._ipc_temp_dir = tempfile.mkdtemp(prefix="mcproxy_ipc_")
+        self._ipc_sock_path = os.path.join(self._ipc_temp_dir, "ipc.sock")
+
+        self._ipc_server = await asyncio.start_unix_server(
+            self._handle_ipc_connection,
+            path=self._ipc_sock_path,
+        )
+        os.chmod(self._ipc_sock_path, 0o600)
+
+        env = self._build_env(namespace, access_control, self._ipc_sock_path)
+
         cmd = [self._uv_path, "run"]
 
         for dep in dependencies:
@@ -536,18 +566,111 @@ print(json.dumps(output))
 
         logger.debug(f"Running uv subprocess: {' '.join(cmd[:5])}...")
 
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
             env=env,
-            timeout=timeout,
         )
 
-        if result.returncode != 0:
-            error = subprocess.CalledProcessError(
-                result.returncode, cmd, result.stdout, result.stderr
+        try:
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                process.communicate(),
+                timeout=timeout,
             )
-            raise error
+        except asyncio.TimeoutError:
+            process.kill()
+            await process.wait()
+            raise
 
-        return result.stdout
+        stdout = stdout_bytes.decode("utf-8", errors="replace")
+        stderr = stderr_bytes.decode("utf-8", errors="replace")
+
+        if process.returncode != 0:
+            error_msg = stderr or f"Process exited with code {process.returncode}"
+            raise RuntimeError(error_msg)
+
+        return stdout
+
+    async def _handle_ipc_connection(
+        self,
+        reader: asyncio.StreamReader,
+        writer: asyncio.StreamWriter,
+    ) -> None:
+        """Handle incoming IPC connection from sandbox subprocess.
+
+        Args:
+            reader: Stream reader for incoming data
+            writer: Stream writer for outgoing data
+        """
+        try:
+            data = await reader.read(65536)
+            if not data:
+                return
+
+            try:
+                request = json.loads(data.decode("utf-8"))
+            except json.JSONDecodeError as e:
+                response = {
+                    "call_id": None,
+                    "status": "error",
+                    "error": f"Invalid JSON: {e}",
+                }
+                writer.write(json.dumps(response).encode("utf-8"))
+                await writer.drain()
+                writer.close()
+                await writer.wait_closed()
+                return
+
+            call_id = request.get("call_id")
+            server = request.get("server")
+            tool = request.get("tool")
+            args = request.get("args", {})
+
+            try:
+                result = self._tool_executor(server, tool, args)
+                if asyncio.iscoroutine(result):
+                    result = await result
+
+                response = {
+                    "call_id": call_id,
+                    "status": "success",
+                    "result": result,
+                }
+            except Exception as e:
+                logger.error(f"[IPC] Tool call failed: {server}.{tool}: {e}")
+                response = {
+                    "call_id": call_id,
+                    "status": "error",
+                    "error": str(e),
+                }
+
+            writer.write(json.dumps(response).encode("utf-8"))
+            await writer.drain()
+
+        except Exception as e:
+            logger.error(f"[IPC] Connection error: {e}")
+        finally:
+            writer.close()
+            await writer.wait_closed()
+
+    async def _cleanup_ipc(self) -> None:
+        """Clean up IPC resources."""
+        if self._ipc_server is not None:
+            self._ipc_server.close()
+            await self._ipc_server.wait_closed()
+            self._ipc_server = None
+
+        if self._ipc_sock_path and os.path.exists(self._ipc_sock_path):
+            try:
+                os.unlink(self._ipc_sock_path)
+            except OSError:
+                pass
+            self._ipc_sock_path = None
+
+        if self._ipc_temp_dir and os.path.exists(self._ipc_temp_dir):
+            try:
+                shutil.rmtree(self._ipc_temp_dir)
+            except OSError:
+                pass
+            self._ipc_temp_dir = None
