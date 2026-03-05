@@ -123,6 +123,7 @@ META_TOOLS = [
 # Global config storage for MCP client config
 _mcp_config: dict = {}
 
+
 async def handle_initialize(
     msg_id: Any,
     params: Dict[str, Any],
@@ -144,7 +145,7 @@ async def handle_initialize(
     global _mcp_config
     if isinstance(params, dict) and params.get("config"):
         _mcp_config = params.get("config", {})
-    
+
     result = {
         "protocolVersion": "2024-11-05",
         "capabilities": {"tools": {}},
@@ -225,7 +226,7 @@ async def handle_tools_call(
             search_config = _mcp_config.get("search", {})
             min_words = search_config.get("min_words", 2)
             max_tools = search_config.get("max_tools", 5)
-            
+
             return await handle_search(
                 msg_id,
                 arguments,
@@ -234,7 +235,7 @@ async def handle_tools_call(
                 min_words=min_words,
                 max_tools=max_tools,
             )
-        
+
         elif tool_name == "execute":
             return await handle_execute(
                 msg_id,
@@ -278,6 +279,8 @@ async def handle_search(
     params: Dict,
     connection_namespace: Optional[str] = None,
     capability_registry: Optional[CapabilityRegistry] = None,
+    min_words: int = 2,
+    max_tools: int = 5,
 ) -> Dict[str, Any]:
     """Handle search meta-tool.
 
@@ -286,6 +289,8 @@ async def handle_search(
         params: Search parameters (query, namespace, max_depth)
         connection_namespace: Namespace from connection context (X-Namespace header)
         capability_registry: Capability registry instance
+        min_words: Minimum words to trigger depth=2 (default: 2)
+        max_tools: Maximum tools to return at depth=2 (default: 5)
 
     Returns:
         MCP response with search results
@@ -296,10 +301,10 @@ async def handle_search(
     effective_namespace = param_namespace or connection_namespace
     # Get depth override from params
     effective_depth = params.get("depth", None)
-    
+
     # Count words in query
     query_words = query.strip().split() if query else []
-    
+
     # Default to depth=1 for empty/short queries (concise), depth=2 for specific queries
     default_depth = 1 if not query or len(query_words) < min_words else 2
     max_depth = effective_depth if effective_depth is not None else default_depth
@@ -319,7 +324,12 @@ async def handle_search(
             }
 
         mq = ManifestQuery(capability_registry)
-        results = mq.search(query, namespace=effective_namespace, max_depth=max_depth)
+        results = mq.search(
+            query,
+            namespace=effective_namespace,
+            max_depth=max_depth,
+            max_tools=max_tools,
+        )
 
         if not effective_namespace:
             results["warning"] = (
