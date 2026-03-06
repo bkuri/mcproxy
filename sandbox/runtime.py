@@ -60,7 +60,22 @@ class _IPCClient:
             if response.get("status") == "error":
                 raise RuntimeError(response.get("error", "Unknown IPC error"))
 
-            return response.get("result")
+            result = response.get("result")
+            
+            # Auto-unwrap MCP protocol responses: {"content": [{"type": "text", "text": "..."}]}
+            if isinstance(result, dict) and "content" in result:
+                content = result.get("content", [])
+                if isinstance(content, list) and len(content) > 0:
+                    first_item = content[0]
+                    if isinstance(first_item, dict) and first_item.get("type") == "text":
+                        text = first_item.get("text", "")
+                        # Try to parse as JSON, return parsed or raw text
+                        try:
+                            return json.loads(text)
+                        except (json.JSONDecodeError, TypeError):
+                            return text
+            
+            return result
         finally:
             sock.close()
 
