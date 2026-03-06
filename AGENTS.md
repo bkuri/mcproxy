@@ -410,6 +410,36 @@ if data["count"] > 10:
 
 **Note: Each `execute` call is isolated** - variables don't persist between calls (fresh subprocess each time).
 
+### Response Types (Auto-Unwrapped)
+
+Tool results are **automatically unwrapped** from MCP protocol. Different tools return different types:
+
+**Common return types:**
+- **String**: File contents (YAML/JSON/text), error messages
+- **List**: Collections (files, entities, records)
+- **Dict**: Structured data (search results, entity details)
+
+**Examples:**
+```python
+# Returns string (YAML content)
+yaml_content = api.server("home_assistant").ha_read_file(path="config.yaml")
+
+# Returns list of files
+files = api.server("home_assistant").ha_list_files()
+
+# Returns dict with 'entities' key
+result = api.server("home_assistant").ha_list_entities(domain="camera")
+cameras = result["entities"]
+
+# Returns string (success/error message)
+msg = api.server("home_assistant").ha_write_file(path="test.yaml", content="...")
+```
+
+**No need for:**
+- ❌ `result['content'][0]['text']` - already unwrapped
+- ❌ `json.loads(result)` - JSON parsed automatically when possible
+- ❌ Nested access patterns - results are direct
+
 ### Parallel Execution (Rare)
 
 For concurrent tool calls, use `parallel()`:
