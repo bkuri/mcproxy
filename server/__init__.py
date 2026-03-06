@@ -1,7 +1,7 @@
-"""FastAPI SSE server for MCProxy v3.0.
+"""FastAPI SSE server for MCProxy v3.1.
 
 Exposes MCP protocol over Server-Sent Events (SSE).
-Meta-tools: search and execute for api_manifest/api_sandbox integration.
+Single meta-tool: mcproxy with actions (execute, search, inspect).
 """
 
 from typing import Any, Callable, Dict, List, Optional
@@ -34,7 +34,7 @@ from server.lifecycle import (
 
 logger = get_logger(__name__)
 
-app = FastAPI(title="MCProxy", version="3.0.0")
+app = FastAPI(title="MCProxy", version="3.1.0")
 
 
 _handle_message = create_message_handler(
@@ -65,7 +65,7 @@ async def health() -> Dict[str, Any]:
         "version": app.version,
         "protocol": "MCP over SSE",
         "hint": "Use POST /sse with JSON-RPC, not REST endpoints",
-        "available_tools": ["search", "execute"],
+        "available_tools": ["mcproxy"],
         "endpoints": {
             "health": "GET /health",
             "sse": "POST /sse (MCP JSON-RPC)",
@@ -83,7 +83,10 @@ async def health() -> Dict[str, Any]:
                     "jsonrpc": "2.0",
                     "id": 1,
                     "method": "tools/call",
-                    "params": {"name": "execute", "arguments": {"code": "1+1"}},
+                    "params": {
+                        "name": "mcproxy",
+                        "arguments": {"action": "execute", "code": "1+1"},
+                    },
                 },
             },
         },
