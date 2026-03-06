@@ -63,6 +63,15 @@ META_TOOLS = [
                     "description": "Maximum search depth (for action='search', default: 2)",
                     "default": 2,
                 },
+                "max_results": {
+                    "type": "integer",
+                    "description": "Maximum results per server (for action='search', default: 5)",
+                    "default": 5,
+                },
+                "brief": {
+                    "type": "boolean",
+                    "description": "Return brief results without schemas (for action='search', default: false)",
+                },
             },
             "required": ["action"],
         },
@@ -302,6 +311,10 @@ async def handle_search(
     effective_namespace = param_namespace or connection_namespace
     # Get depth override from params
     effective_depth = params.get("depth", None)
+    # Get max_results override (overrides config default)
+    effective_max_tools = params.get("max_results", max_tools)
+    # Get brief mode
+    brief = params.get("brief", False)
 
     # Count words in query
     query_words = query.strip().split() if query else []
@@ -314,8 +327,14 @@ async def handle_search(
         default_depth = 1 if not query or len(query_words) < min_words else 2
     max_depth = effective_depth if effective_depth is not None else default_depth
 
+    # If brief mode, force depth=1
+    if brief:
+        max_depth = 1
+
     log_ns = f" namespace={effective_namespace}" if effective_namespace else ""
-    logger.debug(f"[SEARCH] query={query}{log_ns} max_depth={max_depth}")
+    logger.debug(
+        f"[SEARCH] query={query}{log_ns} max_depth={max_depth} max_results={effective_max_tools} brief={brief}"
+    )
 
     try:
         if capability_registry is None:
@@ -333,7 +352,7 @@ async def handle_search(
             query,
             namespace=effective_namespace,
             max_depth=max_depth,
-            max_tools=max_tools,
+            max_tools=effective_max_tools,
         )
 
         if not effective_namespace:
