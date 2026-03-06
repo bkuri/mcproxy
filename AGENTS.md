@@ -1,6 +1,6 @@
 # MCProxy - Agent Guidelines
 
-> **Status**: v3.0 - Sync-Only Execution
+> **Status**: v3.1 - Single Tool API
 > 
 > MCProxy is a lightweight MCP gateway that aggregates multiple stdio MCP servers through namespaced SSE endpoints.
 
@@ -48,19 +48,17 @@ curl -X POST http://192.168.50.71:12010/sse \
 | `POST /sse` | MCP (JSON-RPC) | Main MCP protocol endpoint |
 | `POST /sse/{namespace}` | MCP (JSON-RPC) | Namespaced MCP endpoint |
 
-### Available Tools
+### Single Tool API
 
-Only **2 meta-tools** are exposed via MCP:
+Only **1 meta-tool** is exposed via MCP:
 
-1. **search** - Discover available tools by query
-2. **execute** - Execute Python code with tool access
+**mcproxy** - Unified interface with actions: execute, search, inspect
 
-All other tools are accessed via `execute`:
+All tools are accessed via `execute` action:
 
 ```python
 # Inside execute code
-api.server("wikipedia").search(query="topic")
-api.server("sequential_thinking").sequentialthinking(thought="...")
+mcproxy(action='execute', code='api.server("wikipedia").search(query="topic")')
 ```
 
 ### Quick Protocol Reference
@@ -340,170 +338,71 @@ python-json-logger==2.0.7
 
 ## Code Mode API
 
-MCProxy exposes two meta-tools (`search` + `execute`) that collapse N servers × M tools into ~1K tokens.
+Single tool: `mcproxy(action='execute'|'search'|'inspect', ...)`
 
-### MCP Tool Names
+### Actions
 
-When connected via MCP client (e.g., opencode), tools appear as:
-- `mcproxy_search` - Discover tools by query (namespace optional, warns if omitted)
-- `mcproxy_execute` - Run code with tool access (namespace required)
+**execute** - Run Python code with tool access
+- Parameters: `code` (required), `namespace` (required), `timeout_secs` (optional)
+- Response: `{status, result, stdout, traceback, execution_time_ms}`
+- Tools: `api.server('name').tool(args)`
+- Results auto-unwrapped (string/list/dict)
+- stdout captures print() output
 
-### Usage in Execute Sandbox
+**search** - Find tools by query
+- Parameters: `query`, `namespace`, `max_depth`
+- Empty query returns server list
 
-**⚠️ IMPORTANT: Use only servers from the MCP instructions**
+**inspect** - Get tool schemas
+- Parameters: `server` (required), `tool` (optional)
+- Returns schema without executing
 
-Server names vary by environment. Check the "Available servers and tools" section in the MCP instructions when you connect. Do NOT guess names like `playwright` or `pure_md`.
-
-```python
-# CORRECT: Use servers from the instructions
-data = api.server("wikipedia").search(query="python")
-api.server("sequential_thinking").sequentialthinking(thought="...")
-
-# WRONG: Guessing server names
-api.server("playwright").navigate(...)  # Error: may not exist in this environment
-```
+### Usage
 
 ```python
-# Tools return results immediately:
-data = api.server("home_assistant").read_file(path="config.yaml")
-config = json.loads(data)
-config["new_key"] = "new_value"
-api.server("home_assistant").write_file(path="config.yaml", content=json.dumps(config))
+# Execute (most common)
+mcproxy(action='execute', code='api.server("wikipedia").search(query="python")', namespace='dev')
 
-# Optional: Get full tool details
-api.manifest()                          # All servers/tools with schemas
-api.manifest().servers                  # Server configs with tool definitions
+# Read-modify-write pattern
+mcproxy(action='execute', code="""
+  data = api.server('s').read_file(path='f.yaml')
+  config = json.loads(data)
+  config['key'] = 'value'
+  api.server('s').write_file(path='f.yaml', content=json.dumps(config))
+""", namespace='dev')
+
+# Search for tools
+mcproxy(action='search', query='wikipedia')
+
+# Inspect tool schema
+mcproxy(action='inspect', server='wikipedia', tool='search')
 ```
 
-Namespaces control access. Use `X-Namespace: dev` header or `/sse/dev` endpoint.
+### Response Types
 
-### Tool Inspection
+Auto-unwrapped from MCP protocol:
+- **String**: File contents, error messages
+- **List**: Files, entities, collections
+- **Dict**: Structured data
 
-Inspect tool schemas before calling:
+No need for: `result['content'][0]['text']` or manual JSON parsing.
 
-```python
-# Get tool schema and description
-schema = api.server("wikipedia").search.inspect()
-# Returns: {
-#   "server": "wikipedia",
-#   "name": "search",
-#   "description": "Search Wikipedia articles",
-#   "inputSchema": {"type": "object", "properties": {...}}
-# }
-
-# Check what parameters a tool expects
-tool_info = api.server("sequential_thinking").sequentialthinking.inspect()
-required_params = tool_info["inputSchema"].get("required", [])
-```
-
-### Execution Model
-
-All tool calls execute synchronously with immediate results available in your code:
-
-```python
-# Tools return results immediately
-data = api.server("wikipedia").search(query="python")
-if data["count"] > 10:
-    filtered = [r for r in data["results"] if r["stars"] > 100]
-    result = filtered
-```
-
-**Note: Each `execute` call is isolated** - variables don't persist between calls (fresh subprocess each time).
-
-### Response Types (Auto-Unwrapped)
-
-Tool results are **automatically unwrapped** from MCP protocol. Different tools return different types:
-
-**Common return types:**
-- **String**: File contents (YAML/JSON/text), error messages
-- **List**: Collections (files, entities, records)
-- **Dict**: Structured data (search results, entity details)
-
-**Examples:**
-```python
-# Returns string (YAML content)
-yaml_content = api.server("home_assistant").ha_read_file(path="config.yaml")
-
-# Returns list of files
-files = api.server("home_assistant").ha_list_files()
-
-# Returns dict with 'entities' key
-result = api.server("home_assistant").ha_list_entities(domain="camera")
-cameras = result["entities"]
-
-# Returns string (success/error message)
-msg = api.server("home_assistant").ha_write_file(path="test.yaml", content="...")
-```
-
-**No need for:**
-- ❌ `result['content'][0]['text']` - already unwrapped
-- ❌ `json.loads(result)` - JSON parsed automatically when possible
-- ❌ Nested access patterns - results are direct
-
-### Parallel Execution (Rare)
-
-For concurrent tool calls, use `parallel()`:
+### Parallel Execution
 
 ```python
 results = parallel([
-    lambda: api.server("github").repos.list(),
-    lambda: api.server("wikipedia").search("python"),
+    lambda: api.server('s1').tool1(),
+    lambda: api.server('s2').tool2(),
 ])
+# Returns: [{"status": "fulfilled", "result": ...}, ...]
 ```
 
-Results are returned as a list of dicts:
+### Namespaces
 
-```python
-[
-    {"status": "fulfilled", "result": ...},
-    {"status": "rejected", "error": "..."}
-]
-```
-
-**Note:** `max_parallel` is configured in mcproxy.json (default: 5). Agents cannot override this for security reasons.
-
-### Chained Operations (Read-Modify-Write)
-
-This project uses **bd (beads)** for issue tracking.
-Run `bd prime` for workflow context, or install hooks (`bd hooks install`) for auto-injection.
-
-**Quick reference:**
-- `bd ready` - Find unblocked work
-- `bd create "Title" --type task --priority 2` - Create issue
-- `bd close <id>` - Complete work
-- `bd sync` - Sync with git (run at session end)
-
-For full workflow details: `bd prime`
+Use `X-Namespace: dev` header or `/sse/dev` endpoint to control server access.
 
 ## References
 
 - `mcproxy_spec.md` - Technical specification
 - `mcproxy_implementation_guide.md` - Implementation phases
 - `README.md` - Project overview
-
-## Landing the Plane (Session Completion)
-
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
-
-**MANDATORY WORKFLOW:**
-
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
-   ```bash
-   git pull --rebase
-   bd sync
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
-
-**CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
-# Test auto-deploy

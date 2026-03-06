@@ -23,8 +23,8 @@ logger = get_logger(__name__)
 META_TOOLS = [
     {
         "name": "mcproxy",
-        "description": "MCProxy unified interface. Actions: execute (run code), search (find tools), inspect (get schemas). "
-        "Execute returns auto-unwrapped results (string/list/dict - no content[0].text needed). "
+        "description": "Unified tool: execute (run code), search (find tools), inspect (get schemas). "
+        "Response: {status, result, stdout, traceback}. "
         "Use api.server('name').tool(args) with servers from initialize instructions.",
         "inputSchema": {
             "type": "object",
