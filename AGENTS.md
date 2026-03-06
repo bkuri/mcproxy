@@ -345,9 +345,13 @@ Single tool: `mcproxy(action='execute'|'search'|'inspect', ...)`
 **execute** - Run Python code with tool access
 - Parameters: `code` (required), `namespace` (required), `timeout_secs` (optional)
 - Response: `{status, result, stdout, traceback, execution_time_ms}`
+  - `result`: Tool return value (auto-unwrapped, directly usable)
+  - `stdout`: Captured print() output
+  - `traceback`: Error details if execution failed
 - Tools: `api.server('name').tool(args)`
 - Results auto-unwrapped (string/list/dict)
 - stdout captures print() output
+- Example: `data = api.server("wikipedia").search(...)` returns string directly
 
 **search** - Find tools by query
 - Parameters: `query`, `namespace`, `max_depth`
