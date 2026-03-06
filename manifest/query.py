@@ -76,14 +76,15 @@ class ManifestQuery:
                     query_lower, server_name.lower(), min_similarity
                 )
 
-                if server_match_score >= min_similarity or max_depth >= 1 or show_all:
-                    server_entry: Dict[str, Any] = {
-                        "server": server_name,
-                        "match_score": server_match_score,
-                    }
+            # Always check if we should include this server (not just in else block)
+            if server_match_score >= min_similarity or max_depth >= 1 or show_all:
+                server_entry: Dict[str, Any] = {
+                    "server": server_name,
+                    "match_score": server_match_score,
+                }
 
-                    if server_match_score >= min_similarity:
-                        results["matches"]["servers"].append(server_name)
+                if server_match_score >= min_similarity:
+                    results["matches"]["servers"].append(server_name)
 
                     if max_depth >= 1:
                         server_info = manifest.get("servers", {}).get(server_name, {})

@@ -519,6 +519,10 @@ async def handle_inspect(
         if tool_name:
             for tool in server_tools:
                 if tool.get("name") == tool_name:
+                    # Replace empty descriptions with helpful message
+                    if not tool.get("description"):
+                        tool = dict(tool)  # Make a copy to avoid modifying original
+                        tool["description"] = "No description available"
                     content = [{"type": "text", "text": json.dumps(tool, indent=2)}]
                     return {
                         "jsonrpc": "2.0",
@@ -538,9 +542,12 @@ async def handle_inspect(
         # Otherwise return all tools for the server
         tools_info = []
         for tool in server_tools:
+            description = tool.get("description", "")
             tool_info = {
                 "name": tool.get("name"),
-                "description": tool.get("description", ""),
+                "description": description
+                if description
+                else "No description available",
                 "inputSchema": tool.get("inputSchema", {}),
             }
             tools_info.append(tool_info)
