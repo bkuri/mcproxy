@@ -166,7 +166,25 @@ class _ToolProxy:
     
     def __call__(self, **kwargs):
         '''Execute the tool with given arguments.'''
-        return self._ipc_client.call(self._server_name, self._tool_name, kwargs)
+        # Try exact match first, then try with hyphens/underscores swapped
+        server_info = self._manifest.servers.get(self._server_name, {})
+        tools = server_info.get("tools", [])
+        tool_names = [t.get("name") for t in tools]
+        
+        # Try exact match
+        actual_tool_name = self._tool_name
+        if self._tool_name not in tool_names:
+            # Try replacing underscores with hyphens
+            normalized = self._tool_name.replace("_", "-")
+            if normalized in tool_names:
+                actual_tool_name = normalized
+            else:
+                # Try replacing hyphens with underscores
+                normalized = self._tool_name.replace("-", "_")
+                if normalized in tool_names:
+                    actual_tool_name = normalized
+        
+        return self._ipc_client.call(self._server_name, actual_tool_name, kwargs)
     
     def inspect(self):
         '''Get tool schema and metadata without executing.
@@ -180,12 +198,24 @@ class _ToolProxy:
         '''
         server_info = self._manifest.servers.get(self._server_name, {})
         tools = server_info.get("tools", [])
+        tool_names = [t.get("name") for t in tools]
+        
+        # Try exact match first, then try with hyphens/underscores swapped
+        actual_tool_name = self._tool_name
+        if self._tool_name not in tool_names:
+            normalized = self._tool_name.replace("_", "-")
+            if normalized in tool_names:
+                actual_tool_name = normalized
+            else:
+                normalized = self._tool_name.replace("-", "_")
+                if normalized in tool_names:
+                    actual_tool_name = normalized
         
         for tool in tools:
-            if tool.get("name") == self._tool_name:
+            if tool.get("name") == actual_tool_name:
                 return {
                     "server": self._server_name,
-                    "name": self._tool_name,
+                    "name": actual_tool_name,
                     "description": tool.get("description", ""),
                     "inputSchema": tool.get("inputSchema", {})
                 }
@@ -194,7 +224,7 @@ class _ToolProxy:
             "server": self._server_name,
             "name": self._tool_name,
             "error": f"Tool '{self._tool_name}' not found in server '{self._server_name}'",
-            "available_tools": [t.get("name") for t in tools]
+            "available_tools": tool_names
         }
 
 
