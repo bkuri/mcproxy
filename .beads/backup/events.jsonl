@@ -11,3 +11,10 @@
 {"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-05T19:48:44Z","event_type":"created","id":11,"issue_id":"MCPROXY-wnq","new_value":"","old_value":""}
 {"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-05T19:51:02Z","event_type":"closed","id":12,"issue_id":"MCPROXY-wnq","new_value":"Closed","old_value":""}
 {"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-05T19:53:53Z","event_type":"created","id":13,"issue_id":"MCPROXY-ilm","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-05T19:53:53Z","event_type":"created","id":14,"issue_id":"MCPROXY-4ev","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-05T19:53:53Z","event_type":"created","id":15,"issue_id":"MCPROXY-4uh","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-05T19:56:17Z","event_type":"closed","id":16,"issue_id":"MCPROXY-4ev","new_value":"Closed","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-05T19:57:53Z","event_type":"closed","id":17,"issue_id":"MCPROXY-ilm","new_value":"Addressed via documentation - response structure now explicitly documented in AGENTS.md with examples. Runtime hint injection would add complexity without significant benefit.","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-05T19:57:53Z","event_type":"closed","id":18,"issue_id":"MCPROXY-4uh","new_value":"Tool description issue is in external home_assistant MCP server, not mcproxy. Needs to be fixed upstream in the MCP server package.","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-05T20:08:23Z","event_type":"created","id":19,"issue_id":"MCPROXY-i6n","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-05T20:10:43Z","event_type":"closed","id":20,"issue_id":"MCPROXY-i6n","new_value":"Fixed by adding proper string-to-boolean conversion for brief parameter. Now correctly handles string values like 'false' and '0'.","old_value":""}
