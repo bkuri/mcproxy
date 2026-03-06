@@ -127,7 +127,18 @@ class _NamespaceAccessControl:
         allowed = self._resolve_allowed_servers(namespace)
         if target_server in allowed:
             return True, ""
-        return False, f"Access denied to '{target_server}'"
+        
+        # Provide helpful error with available servers
+        available = sorted(allowed) if allowed else ["none"]
+        if len(available) <= 5:
+            server_list = ", ".join(available)
+        else:
+            server_list = ", ".join(available[:5]) + f", and {len(available) - 5} more"
+        
+        return False, (
+            f"Access denied to '{target_server}'. "
+            f"Available servers in '{namespace}' namespace: {server_list}"
+        )
 
     def _resolve_allowed_servers(self, namespace_or_group):
         resolved = set()
