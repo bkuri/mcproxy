@@ -7,6 +7,7 @@ Meta-tools: search and execute for api_manifest/api_sandbox integration.
 from typing import Any, Callable, Dict, List, Optional
 
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 
 from manifest import CapabilityRegistry, EventHookManager
 from sandbox import SandboxExecutor
@@ -57,9 +58,55 @@ async def handle_message(request: Any) -> Dict[str, Any]:
 
 
 @app.get("/health")
-async def health() -> Dict[str, str]:
-    """Health check endpoint for monitoring and load balancers."""
-    return {"status": "healthy", "version": app.version}
+async def health() -> Dict[str, Any]:
+    """Health check endpoint with protocol information."""
+    return {
+        "status": "healthy",
+        "version": app.version,
+        "protocol": "MCP over SSE",
+        "hint": "Use POST /sse with JSON-RPC, not REST endpoints",
+        "available_tools": ["search", "execute"],
+        "endpoints": {
+            "health": "GET /health",
+            "sse": "POST /sse (MCP JSON-RPC)",
+            "namespaced_sse": "POST /sse/{namespace} (MCP JSON-RPC)",
+        },
+        "example_usage": {
+            "list_tools": {
+                "method": "POST /sse",
+                "body": {"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+            },
+            "execute_code": {
+                "method": "POST /sse",
+                "headers": {"X-Namespace": "dev"},
+                "body": {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "tools/call",
+                    "params": {"name": "execute", "arguments": {"code": "1+1"}},
+                },
+            },
+        },
+    }
+
+
+@app.exception_handler(404)
+async def custom_404_handler(request: Any, exc: Any) -> JSONResponse:
+    """Provide helpful error message for 404s - agents often try REST endpoints."""
+    return JSONResponse(
+        status_code=404,
+        content={
+            "error": "Not Found",
+            "hint": "MCProxy uses MCP Protocol (JSON-RPC), not REST endpoints",
+            "correct_usage": {
+                "list_tools": "POST /sse with {'jsonrpc':'2.0','id':1,'method':'tools/list'}",
+                "call_tool": "POST /sse with {'jsonrpc':'2.0','id':1,'method':'tools/call','params':{...}}",
+                "health_check": "GET /health",
+            },
+            "example": 'curl -X POST http://localhost:12010/sse -H \'Content-Type: application/json\' -d \'{"jsonrpc":"2.0","id":1,"method":"tools/list"}\'',
+            "documentation": "https://github.com/bkuri/mcproxy/blob/main/README.md",
+        },
+    )
 
 
 def set_server_manager(manager: Any) -> None:

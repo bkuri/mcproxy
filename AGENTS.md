@@ -4,6 +4,82 @@
 > 
 > MCProxy is a lightweight MCP gateway that aggregates multiple stdio MCP servers through namespaced SSE endpoints.
 
+## ⚠️ IMPORTANT: MCProxy uses MCP Protocol, not REST
+
+**Do NOT try to use REST endpoints** - MCProxy implements the MCP (Model Context Protocol) over SSE using JSON-RPC.
+
+### ❌ Wrong Approach
+```bash
+curl http://192.168.50.71:12010/tools  # 404 Not Found
+curl http://192.168.50.71:12010/execute  # 404 Not Found
+```
+
+### ✅ Correct Approach
+```bash
+# Health check (this IS a REST endpoint - works!)
+curl http://192.168.50.71:12010/health
+
+# List tools (MCP protocol)
+curl -X POST http://192.168.50.71:12010/sse \
+  -H "Content-Type: application/json" \
+  -H "X-Namespace: dev" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+
+# Execute code (MCP protocol)
+curl -X POST http://192.168.50.71:12010/sse \
+  -H "Content-Type: application/json" \
+  -H "X-Namespace: dev" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "execute",
+      "arguments": {"code": "1+2+3"}
+    }
+  }'
+```
+
+### Available Endpoints
+
+| Endpoint | Type | Purpose |
+|----------|------|---------|
+| `GET /health` | REST | Health check with protocol info |
+| `POST /sse` | MCP (JSON-RPC) | Main MCP protocol endpoint |
+| `POST /sse/{namespace}` | MCP (JSON-RPC) | Namespaced MCP endpoint |
+
+### Available Tools
+
+Only **2 meta-tools** are exposed via MCP:
+
+1. **search** - Discover available tools by query
+2. **execute** - Execute Python code with tool access
+
+All other tools are accessed via `execute`:
+
+```python
+# Inside execute code
+api.server("wikipedia").search(query="topic")
+api.server("sequential_thinking").sequentialthinking(thought="...")
+```
+
+### Quick Protocol Reference
+
+**MCP Protocol uses JSON-RPC 2.0:**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/list" | "tools/call",
+  "params": {...}
+}
+```
+
+**For more details:**
+- Check health endpoint: `curl http://192.168.50.71:12010/health`
+- See `/tmp/MCPROXY_MCP_ACCESS_GUIDE.md` for detailed examples
+
 ## Build & Test Commands
 
 ```bash
