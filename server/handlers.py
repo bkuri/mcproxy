@@ -50,7 +50,8 @@ META_TOOLS = [
     {
         "name": "execute",
         "description": "Execute Python code with tool access via api.server('name').tool(args). "
-        "Tools return results immediately. Use only the servers listed in the initialize instructions. "
+        "Results auto-unwrapped (string/list/dict - no content[0].text needed). "
+        "Use only servers from initialize instructions. "
         "Use .inspect() on any tool to get its schema. "
         "Use parallel([...]) for concurrent execution (rare).",
         "inputSchema": {
