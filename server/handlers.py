@@ -22,55 +22,49 @@ logger = get_logger(__name__)
 
 META_TOOLS = [
     {
-        "name": "search",
-        "description": "OPTIONAL - Only use if you don't know the server/tool name. "
-        "Available servers are listed in the initialize instructions. "
-        "Skip this and call execute directly with api.server('name').tool(args). "
-        "Returns matching tools with metadata.",
+        "name": "mcproxy",
+        "description": "MCProxy unified interface. Actions: execute (run code), search (find tools), inspect (get schemas). "
+        "Execute returns auto-unwrapped results (string/list/dict - no content[0].text needed). "
+        "Use api.server('name').tool(args) with servers from initialize instructions.",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "query": {
+                "action": {
                     "type": "string",
-                    "description": "Natural language search query for tools",
+                    "enum": ["execute", "search", "inspect"],
+                    "description": "Action to perform: execute (run code), search (find tools), inspect (get tool schemas)",
                 },
-                "namespace": {
-                    "type": "string",
-                    "description": "Optional namespace to filter results",
-                },
-                "max_depth": {
-                    "type": "integer",
-                    "description": "Maximum search depth (default: 2)",
-                    "default": 2,
-                },
-            },
-            "required": [],
-        },
-    },
-    {
-        "name": "execute",
-        "description": "Execute Python code with tool access via api.server('name').tool(args). "
-        "Results auto-unwrapped (string/list/dict - no content[0].text needed). "
-        "Use only servers from initialize instructions. "
-        "Use .inspect() on any tool to get its schema. "
-        "Use parallel([...]) for concurrent execution (rare).",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
                 "code": {
                     "type": "string",
-                    "description": "Python code to execute",
+                    "description": "Python code to execute (for action='execute')",
+                },
+                "query": {
+                    "type": "string",
+                    "description": "Search query for tools (for action='search')",
+                },
+                "server": {
+                    "type": "string",
+                    "description": "Server name for inspection (for action='inspect')",
+                },
+                "tool": {
+                    "type": "string",
+                    "description": "Tool name for inspection (for action='inspect', optional - if omitted returns all tools for server)",
                 },
                 "namespace": {
                     "type": "string",
-                    "description": "Optional namespace for execution context",
+                    "description": "Optional namespace for context",
                 },
                 "timeout_secs": {
                     "type": "integer",
-                    "description": "Execution timeout in seconds",
+                    "description": "Execution timeout in seconds (for action='execute')",
+                },
+                "max_depth": {
+                    "type": "integer",
+                    "description": "Maximum search depth (for action='search', default: 2)",
+                    "default": 2,
                 },
             },
-            "required": ["code"],
+            "required": ["action"],
         },
     },
 ]
@@ -178,7 +172,7 @@ async def handle_tools_call(
     session_manager: Optional[SessionManager] = None,
     tool_executor: Optional[Callable] = None,
 ) -> Dict[str, Any]:
-    """Handle tools/call request - route to search or execute.
+    """Handle tools/call request - route to appropriate action handler.
 
     Args:
         msg_id: JSON-RPC message ID
@@ -204,10 +198,42 @@ async def handle_tools_call(
     )
 
     try:
-        # Support both prefixed (mcproxy_*) and non-prefixed names as aliases
+        # Support prefixed names (mcproxy_mcproxy, mcproxy)
         canonical_name = tool_name.replace("mcproxy_", "")
 
-        if canonical_name == "search":
+        if canonical_name != "mcproxy":
+            return {
+                "jsonrpc": "2.0",
+                "id": msg_id,
+                "error": {
+                    "code": -32601,
+                    "message": f"Unknown tool: {tool_name}. v3.1.0 only supports 'mcproxy' tool.",
+                },
+            }
+
+        action = arguments.get("action")
+        if not action:
+            return {
+                "jsonrpc": "2.0",
+                "id": msg_id,
+                "error": {
+                    "code": -32602,
+                    "message": "Missing required parameter: action",
+                },
+            }
+
+        if action == "execute":
+            return await handle_execute(
+                msg_id,
+                arguments,
+                connection_namespace=namespace,
+                session_id=session_id,
+                sandbox_executor=sandbox_executor,
+                session_manager=session_manager,
+                tool_executor=tool_executor,
+            )
+
+        elif action == "search":
             # Get config for search (merge mcproxy.json + MCP client config)
             merged_config = {**_mcproxy_config, **_mcp_config}
             search_config = merged_config.get("search", {})
@@ -223,23 +249,21 @@ async def handle_tools_call(
                 max_tools=max_tools,
             )
 
-        elif canonical_name == "execute":
-            return await handle_execute(
+        elif action == "inspect":
+            return await handle_inspect(
                 msg_id,
                 arguments,
                 connection_namespace=namespace,
-                session_id=session_id,
-                sandbox_executor=sandbox_executor,
-                session_manager=session_manager,
-                tool_executor=tool_executor,
+                capability_registry=capability_registry,
             )
+
         else:
             return {
                 "jsonrpc": "2.0",
                 "id": msg_id,
                 "error": {
-                    "code": -32601,
-                    "message": f"Unknown tool: {tool_name}. v2.0 supports 'search', 'execute', 'mcproxy_search', or 'mcproxy_execute'.",
+                    "code": -32602,
+                    "message": f"Unknown action: {action}. Supported actions: execute, search, inspect",
                 },
             }
     except Exception as e:
@@ -412,6 +436,101 @@ async def handle_execute(
             "jsonrpc": "2.0",
             "id": msg_id,
             "error": {"code": -32000, "message": f"Execution failed: {e}"},
+        }
+
+
+async def handle_inspect(
+    msg_id: Any,
+    params: Dict,
+    connection_namespace: Optional[str] = None,
+    capability_registry: Optional[CapabilityRegistry] = None,
+) -> Dict[str, Any]:
+    """Handle inspect action - get tool schema without executing.
+
+    Args:
+        msg_id: JSON-RPC message ID
+        params: Inspection parameters (server, tool)
+        connection_namespace: Namespace from connection context
+        capability_registry: Capability registry instance
+
+    Returns:
+        MCP response with tool schema or list of tool schemas
+    """
+    server_name = params.get("server")
+    tool_name = params.get("tool")
+
+    if not server_name:
+        return {
+            "jsonrpc": "2.0",
+            "id": msg_id,
+            "error": {"code": -32602, "message": "Missing required parameter: server"},
+        }
+
+    try:
+        if capability_registry is None:
+            return {
+                "jsonrpc": "2.0",
+                "id": msg_id,
+                "error": {
+                    "code": -32000,
+                    "message": "Capability registry not initialized",
+                },
+            }
+
+        # Get server tools
+        manifest = capability_registry._manifest
+        tools_by_server = manifest.get("tools_by_server", {})
+        server_tools = tools_by_server.get(server_name)
+
+        if not server_tools:
+            return {
+                "jsonrpc": "2.0",
+                "id": msg_id,
+                "error": {
+                    "code": -32000,
+                    "message": f"Server '{server_name}' not found",
+                },
+            }
+
+        # If tool name specified, return specific tool schema
+        if tool_name:
+            for tool in server_tools:
+                if tool.get("name") == tool_name:
+                    content = [{"type": "text", "text": json.dumps(tool, indent=2)}]
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": msg_id,
+                        "result": {"content": content},
+                    }
+
+            return {
+                "jsonrpc": "2.0",
+                "id": msg_id,
+                "error": {
+                    "code": -32000,
+                    "message": f"Tool '{tool_name}' not found in server '{server_name}'",
+                },
+            }
+
+        # Otherwise return all tools for the server
+        tools_info = []
+        for tool in server_tools:
+            tool_info = {
+                "name": tool.get("name"),
+                "description": tool.get("description", ""),
+                "inputSchema": tool.get("inputSchema", {}),
+            }
+            tools_info.append(tool_info)
+
+        content = [{"type": "text", "text": json.dumps(tools_info, indent=2)}]
+        return {"jsonrpc": "2.0", "id": msg_id, "result": {"content": content}}
+
+    except Exception as e:
+        logger.error(f"[INSPECT_ERROR] {e}")
+        return {
+            "jsonrpc": "2.0",
+            "id": msg_id,
+            "error": {"code": -32000, "message": f"Inspect failed: {e}"},
         }
 
 
