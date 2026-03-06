@@ -313,8 +313,12 @@ async def handle_search(
     effective_depth = params.get("depth", None)
     # Get max_results override (overrides config default)
     effective_max_tools = params.get("max_results", max_tools)
-    # Get brief mode
-    brief = params.get("brief", False)
+    # Get brief mode - handle string representations properly
+    brief_param = params.get("brief", False)
+    if isinstance(brief_param, str):
+        brief = brief_param.lower() in ("true", "1")
+    else:
+        brief = bool(brief_param)
 
     # Count words in query
     query_words = query.strip().split() if query else []
