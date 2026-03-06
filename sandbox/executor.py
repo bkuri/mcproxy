@@ -288,7 +288,7 @@ class SandboxExecutor:
 
                 # Build response with stdout if present
                 response_data = {
-                    "status": "success",
+                    "status": "error" if result.get("traceback") else "success",
                     "result": result.get("result"),
                     "traceback": result.get("traceback"),
                     "execution_time_ms": execution_time_ms,

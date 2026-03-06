@@ -76,39 +76,51 @@ class ManifestQuery:
                     query_lower, server_name.lower(), min_similarity
                 )
 
-            if server_match_score >= min_similarity or max_depth >= 1 or show_all:
-                server_entry: Dict[str, Any] = {
-                    "server": server_name,
-                    "match_score": server_match_score,
-                }
+                if server_match_score >= min_similarity or max_depth >= 1 or show_all:
+                    server_entry: Dict[str, Any] = {
+                        "server": server_name,
+                        "match_score": server_match_score,
+                    }
 
-                if server_match_score >= min_similarity:
-                    results["matches"]["servers"].append(server_name)
+                    if server_match_score >= min_similarity:
+                        results["matches"]["servers"].append(server_name)
 
-                if max_depth >= 1:
-                    server_info = manifest.get("servers", {}).get(server_name, {})
-                    categories = server_info.get("categories", [])
-                    matched_categories = []
+                    if max_depth >= 1:
+                        server_info = manifest.get("servers", {}).get(server_name, {})
+                        categories = server_info.get("categories", [])
+                        matched_categories = []
 
-                    for cat in categories:
-                        cat_score = fuzzy_score(
-                            query_lower, cat.lower(), min_similarity
-                        )
-                        if cat_score >= min_similarity:
-                            matched_categories.append(cat)
-                            results["matches"]["categories"].append(
-                                f"{server_name}:{cat}"
+                        for cat in categories:
+                            cat_score = fuzzy_score(
+                                query_lower, cat.lower(), min_similarity
                             )
+                            if cat_score >= min_similarity:
+                                matched_categories.append(cat)
+                                results["matches"]["categories"].append(
+                                    f"{server_name}:{cat}"
+                                )
 
-                    server_entry["categories"] = categories
-                    server_entry["matched_categories"] = matched_categories
+                        server_entry["categories"] = categories
+                        server_entry["matched_categories"] = matched_categories
 
-                    # Always include tool count at depth >= 1
-                    if namespace:
-                        tools = self._registry.get_tools(server_name, namespace)
-                    else:
-                        tools = self._registry.get_tools(server_name)
-                    server_entry["tools"] = len(tools)
+                        # Always include tool count at depth >= 1
+                        if namespace:
+                            tools = self._registry.get_tools(server_name, namespace)
+                        else:
+                            tools = self._registry.get_tools(server_name)
+                        server_entry["tools"] = len(tools)
+
+                        # Search tool names even at depth=1 (for discoverability)
+                        if not show_all and query_lower:
+                            for tool in tools:
+                                tool_name = tool.get("name", "")
+                                name_score = fuzzy_score(
+                                    query_lower, tool_name.lower(), min_similarity
+                                )
+                                if name_score >= min_similarity:
+                                    results["matches"]["tools"].append(
+                                        f"{server_name}:{tool_name}"
+                                    )
 
                 if max_depth >= 2:
                     tools = self._registry.get_tools(server_name, namespace)

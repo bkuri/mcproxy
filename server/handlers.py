@@ -309,8 +309,8 @@ async def handle_search(
 
     param_namespace = params.get("namespace")
     effective_namespace = param_namespace or connection_namespace
-    # Get depth override from params
-    effective_depth = params.get("depth", None)
+    # Get depth override from params (support both 'depth' and 'max_depth')
+    effective_depth = params.get("max_depth") or params.get("depth")
     # Get max_results override (overrides config default)
     effective_max_tools = params.get("max_results", max_tools)
     # Get brief mode - handle string representations properly
