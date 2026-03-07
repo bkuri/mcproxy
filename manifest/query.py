@@ -28,19 +28,23 @@ class ManifestQuery:
         max_depth: int = 2,
         max_tools: int = 5,
     ) -> Dict:
-        """Search manifest with fuzzy matching.
+        """Search manifest with fuzzy matching (discovery only - no schemas).
 
         Depth levels:
             0: Server names only
-            1: Server names + categories
-            2: Server names + categories + tool names
-            3: Full tool schemas
+            1: Server names + categories + tool counts
+            2: Server names + categories + tool names + descriptions (truncated)
+            3: Server names + categories + tool names + full descriptions
+
+        Note: This action is for discovery only. Use inspect() to get tool schemas.
 
         Args:
             query: Search query string
             namespace: Optional namespace filter
             max_depth: Maximum depth level (0-3)
-            Returns:
+            max_tools: Maximum tools to return at depth=2 (default: 5)
+
+        Returns:
             Search results dictionary
         """
         manifest = self._registry._manifest
@@ -145,12 +149,11 @@ class ManifestQuery:
                                 "match_score": best_score,
                             }
 
-                            # At depth=2, include description and schema for matched tools
+                            # At depth=2, include description only (no schema - use inspect for schemas)
                             if max_depth >= 2:
                                 tool_match["description"] = (
                                     tool_desc[:200] if tool_desc else ""
                                 )  # Truncate long descriptions
-                                tool_match["inputSchema"] = tool.get("inputSchema", {})
 
                             if max_depth >= 3:
                                 # At depth=3, include full description

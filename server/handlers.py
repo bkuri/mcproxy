@@ -40,7 +40,7 @@ META_TOOLS = [
                 },
                 "query": {
                     "type": "string",
-                    "description": "Search query for tools (for action='search')",
+                    "description": "Search query for tools (for action='search'). Returns descriptions only - use inspect for schemas.",
                 },
                 "server": {
                     "type": "string",
@@ -75,7 +75,7 @@ META_TOOLS = [
                 },
                 "brief": {
                     "type": "boolean",
-                    "description": "Return brief results without schemas (for action='search', default: false)",
+                    "description": "Return brief results (force max_depth=1, for action='search', default: false)",
                 },
                 "topic": {
                     "type": "string",
@@ -380,11 +380,11 @@ def handle_help(msg_id: Any, arguments: Dict[str, Any]) -> Dict[str, Any]:
                     },
                 },
                 "search": {
-                    "description": "Discover available servers and tools",
+                    "description": "Discover available servers and tools (no schemas - use inspect for schemas)",
                     "usage": "mcproxy(action='search', query='...', namespace='...')",
                 },
                 "inspect": {
-                    "description": "Get detailed schemas for a server's tools",
+                    "description": "Get detailed schemas for a server's tools (parameters, types, required fields)",
                     "usage": "mcproxy(action='inspect', server='name', namespace='...')",
                 },
                 "help": {
