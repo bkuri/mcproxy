@@ -19,3 +19,87 @@
 {"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-05T20:08:23Z","event_type":"created","id":19,"issue_id":"MCPROXY-i6n","new_value":"","old_value":""}
 {"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-05T20:10:43Z","event_type":"closed","id":20,"issue_id":"MCPROXY-i6n","new_value":"Fixed by adding proper string-to-boolean conversion for brief parameter. Now correctly handles string values like 'false' and '0'.","old_value":""}
 {"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:09:06Z","event_type":"created","id":21,"issue_id":"MCPROXY-m9c","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:09:27Z","event_type":"created","id":22,"issue_id":"MCPROXY-abs","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:09:27Z","event_type":"created","id":23,"issue_id":"MCPROXY-k20","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:09:27Z","event_type":"created","id":24,"issue_id":"MCPROXY-0c2","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:09:27Z","event_type":"created","id":25,"issue_id":"MCPROXY-9er","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:09:27Z","event_type":"created","id":26,"issue_id":"MCPROXY-evg","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:09:37Z","event_type":"created","id":27,"issue_id":"MCPROXY-k5e","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:09:37Z","event_type":"created","id":28,"issue_id":"MCPROXY-97d","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:09:37Z","event_type":"created","id":29,"issue_id":"MCPROXY-z47","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:09:37Z","event_type":"created","id":30,"issue_id":"MCPROXY-5h0","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:09:37Z","event_type":"created","id":31,"issue_id":"MCPROXY-way","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:09:47Z","event_type":"created","id":32,"issue_id":"MCPROXY-vid","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:09:47Z","event_type":"created","id":33,"issue_id":"MCPROXY-yb4","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:09:47Z","event_type":"created","id":34,"issue_id":"MCPROXY-jlx","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:09:47Z","event_type":"created","id":35,"issue_id":"MCPROXY-ber","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:09:47Z","event_type":"created","id":36,"issue_id":"MCPROXY-2aa","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:09:56Z","event_type":"created","id":37,"issue_id":"MCPROXY-dhz","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:09:56Z","event_type":"created","id":38,"issue_id":"MCPROXY-wpr","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:09:56Z","event_type":"created","id":39,"issue_id":"MCPROXY-cbu","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:09:56Z","event_type":"created","id":40,"issue_id":"MCPROXY-acm","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:09:56Z","event_type":"created","id":41,"issue_id":"MCPROXY-hv7","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:10:09Z","event_type":"created","id":42,"issue_id":"MCPROXY-33f","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:10:09Z","event_type":"created","id":43,"issue_id":"MCPROXY-46f","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:10:09Z","event_type":"created","id":44,"issue_id":"MCPROXY-7ef","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:10:09Z","event_type":"created","id":45,"issue_id":"MCPROXY-cnm","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:10:09Z","event_type":"created","id":46,"issue_id":"MCPROXY-aj3","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:14:23Z","event_type":"created","id":47,"issue_id":"MCPROXY-02f","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:17:36Z","event_type":"created","id":48,"issue_id":"MCPROXY-2jw","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:18:53Z","event_type":"closed","id":49,"issue_id":"MCPROXY-46f","new_value":"Recreating with proper description","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:19:03Z","event_type":"created","id":50,"issue_id":"MCPROXY-ta9","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:19:19Z","event_type":"closed","id":51,"issue_id":"MCPROXY-m9c","new_value":"Recreating with proper description","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:19:19Z","event_type":"created","id":52,"issue_id":"MCPROXY-adt","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:20:05Z","event_type":"closed","id":53,"issue_id":"MCPROXY-33f","new_value":"Recreating with proper description","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:20:05Z","event_type":"created","id":54,"issue_id":"MCPROXY-wr8","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:20:05Z","event_type":"closed","id":55,"issue_id":"MCPROXY-acm","new_value":"Recreating with proper description","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:20:05Z","event_type":"created","id":56,"issue_id":"MCPROXY-7v0","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:20:05Z","event_type":"closed","id":57,"issue_id":"MCPROXY-dhz","new_value":"Recreating with proper description","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:20:05Z","event_type":"created","id":58,"issue_id":"MCPROXY-29c","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:20:05Z","event_type":"closed","id":59,"issue_id":"MCPROXY-wpr","new_value":"Recreating with proper description","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:20:05Z","event_type":"created","id":60,"issue_id":"MCPROXY-d2j","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:20:05Z","event_type":"closed","id":61,"issue_id":"MCPROXY-9er","new_value":"Recreating with proper description","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:20:05Z","event_type":"created","id":62,"issue_id":"MCPROXY-5vi","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:20:05Z","event_type":"closed","id":63,"issue_id":"MCPROXY-abs","new_value":"Recreating with proper description","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:20:05Z","event_type":"created","id":64,"issue_id":"MCPROXY-ibi","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:20:05Z","event_type":"closed","id":65,"issue_id":"MCPROXY-k20","new_value":"Recreating with proper description","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:20:06Z","event_type":"created","id":66,"issue_id":"MCPROXY-5is","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:21:07Z","event_type":"closed","id":67,"issue_id":"MCPROXY-aj3","new_value":"Recreating with proper description","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:21:07Z","event_type":"created","id":68,"issue_id":"MCPROXY-62e","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:21:07Z","event_type":"closed","id":69,"issue_id":"MCPROXY-cnm","new_value":"Recreating with proper description","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:21:07Z","event_type":"created","id":70,"issue_id":"MCPROXY-fbz","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:21:07Z","event_type":"closed","id":71,"issue_id":"MCPROXY-cbu","new_value":"Recreating with proper description","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:21:07Z","event_type":"created","id":72,"issue_id":"MCPROXY-iko","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:21:07Z","event_type":"closed","id":73,"issue_id":"MCPROXY-hv7","new_value":"Recreating with proper description","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:21:08Z","event_type":"created","id":74,"issue_id":"MCPROXY-afd","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:21:08Z","event_type":"closed","id":75,"issue_id":"MCPROXY-5h0","new_value":"Recreating with proper description","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:21:08Z","event_type":"created","id":76,"issue_id":"MCPROXY-p2p","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:21:08Z","event_type":"closed","id":77,"issue_id":"MCPROXY-k5e","new_value":"Recreating with proper description","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:21:08Z","event_type":"created","id":78,"issue_id":"MCPROXY-bu9","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:21:08Z","event_type":"closed","id":79,"issue_id":"MCPROXY-0c2","new_value":"Recreating with proper description","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:21:08Z","event_type":"created","id":80,"issue_id":"MCPROXY-aku","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:21:08Z","event_type":"closed","id":81,"issue_id":"MCPROXY-evg","new_value":"Recreating with proper description","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:21:08Z","event_type":"created","id":82,"issue_id":"MCPROXY-173","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:21:08Z","event_type":"closed","id":83,"issue_id":"MCPROXY-02f","new_value":"Recreating with proper description","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:21:08Z","event_type":"created","id":84,"issue_id":"MCPROXY-8s0","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:21:08Z","event_type":"closed","id":85,"issue_id":"MCPROXY-2jw","new_value":"Recreating with proper description","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:21:08Z","event_type":"created","id":86,"issue_id":"MCPROXY-s1j","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:22:04Z","event_type":"closed","id":87,"issue_id":"MCPROXY-7ef","new_value":"Recreating with proper description","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:22:04Z","event_type":"created","id":88,"issue_id":"MCPROXY-010","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:22:04Z","event_type":"closed","id":89,"issue_id":"MCPROXY-2aa","new_value":"Recreating with proper description","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:22:04Z","event_type":"created","id":90,"issue_id":"MCPROXY-2z4","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:22:04Z","event_type":"closed","id":91,"issue_id":"MCPROXY-ber","new_value":"Recreating with proper description","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:22:04Z","event_type":"created","id":92,"issue_id":"MCPROXY-9ps","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:22:04Z","event_type":"closed","id":93,"issue_id":"MCPROXY-jlx","new_value":"Recreating with proper description","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:22:04Z","event_type":"created","id":94,"issue_id":"MCPROXY-987","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:22:04Z","event_type":"closed","id":95,"issue_id":"MCPROXY-vid","new_value":"Recreating with proper description","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:22:04Z","event_type":"created","id":96,"issue_id":"MCPROXY-dsb","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:22:04Z","event_type":"closed","id":97,"issue_id":"MCPROXY-yb4","new_value":"Recreating with proper description","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:22:05Z","event_type":"created","id":98,"issue_id":"MCPROXY-4g9","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:22:05Z","event_type":"closed","id":99,"issue_id":"MCPROXY-97d","new_value":"Recreating with proper description","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:22:05Z","event_type":"created","id":100,"issue_id":"MCPROXY-f6t","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:22:05Z","event_type":"closed","id":101,"issue_id":"MCPROXY-way","new_value":"Recreating with proper description","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:22:05Z","event_type":"created","id":102,"issue_id":"MCPROXY-ut5","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:22:05Z","event_type":"closed","id":103,"issue_id":"MCPROXY-z47","new_value":"Recreating with proper description","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:22:05Z","event_type":"created","id":104,"issue_id":"MCPROXY-nm3","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:26:54Z","event_type":"created","id":105,"issue_id":"MCPROXY-e6p","new_value":"","old_value":""}
