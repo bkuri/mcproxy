@@ -250,6 +250,11 @@ class _DynamicProxy:
     def __getattr__(self, tool_name):
         return _ToolProxy(self._server_name, tool_name, self._ipc_client, self._manifest)
 
+    def __dir__(self):
+        server_info = self._manifest.servers.get(self._server_name, {})
+        tools = server_info.get("tools", [])
+        return [tool.get("name") for tool in tools]
+
 
 class _APIProxy:
     def __init__(self, namespace, access_control, ipc_client, manifest):

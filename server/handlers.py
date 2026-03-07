@@ -23,7 +23,7 @@ logger = get_logger(__name__)
 META_TOOLS = [
     {
         "name": "mcproxy",
-        "description": "Unified tool: execute (run code), search (find tools), inspect (get schemas). "
+        "description": "Unified tool: execute (run code), search (find tools), inspect (get schemas), help (get docs). "
         "Response: {status, result, stdout, traceback}. "
         "Use api.server('name').tool(args) with servers from initialize instructions.",
         "inputSchema": {
@@ -31,8 +31,8 @@ META_TOOLS = [
             "properties": {
                 "action": {
                     "type": "string",
-                    "enum": ["execute", "search", "inspect"],
-                    "description": "Action to perform: execute (run code), search (find tools), inspect (get tool schemas)",
+                    "enum": ["execute", "search", "inspect", "help"],
+                    "description": "Action to perform: execute (run code), search (find tools), inspect (get tool schemas), help (get documentation)",
                 },
                 "code": {
                     "type": "string",
@@ -266,13 +266,16 @@ async def handle_tools_call(
                 capability_registry=capability_registry,
             )
 
+        elif action == "help":
+            return handle_help(msg_id)
+
         else:
             return {
                 "jsonrpc": "2.0",
                 "id": msg_id,
                 "error": {
                     "code": -32602,
-                    "message": f"Unknown action: {action}. Supported actions: execute, search, inspect",
+                    "message": f"Unknown action: {action}. Supported actions: execute, search, inspect, help",
                 },
             }
     except Exception as e:
@@ -282,6 +285,46 @@ async def handle_tools_call(
             "id": msg_id,
             "error": {"code": -32000, "message": f"Tool execution failed: {e}"},
         }
+
+
+def handle_help(msg_id: Any) -> Dict[str, Any]:
+    """Handle help action - return documentation about available actions.
+
+    Args:
+        msg_id: JSON-RPC message ID
+
+    Returns:
+        MCP response with help documentation
+    """
+    help_data = {
+        "actions": {
+            "execute": {
+                "description": "Run Python code with access to MCP tools",
+                "usage": "mcproxy(action='execute', code='...', namespace='...')",
+                "available_objects": ["api", "parallel", "mcproxy"],
+            },
+            "search": {
+                "description": "Discover available servers and tools",
+                "usage": "mcproxy(action='search', query='...', namespace='...')",
+            },
+            "inspect": {
+                "description": "Get detailed schemas for a server's tools",
+                "usage": "mcproxy(action='inspect', server='name', namespace='...')",
+            },
+            "help": {
+                "description": "Get help and documentation",
+                "usage": "mcproxy(action='help')",
+            },
+        },
+        "quick_start": {
+            "discover_servers": "mcproxy(action='search', query='', namespace='dev')",
+            "execute_code": "mcproxy(action='execute', code='api.server(\"name\").tool()', namespace='dev')",
+            "inspect_tools": "mcproxy(action='inspect', server='name', namespace='dev')",
+        },
+    }
+
+    content = [{"type": "text", "text": json.dumps(help_data, indent=2)}]
+    return {"jsonrpc": "2.0", "id": msg_id, "result": {"content": content}}
 
 
 async def handle_search(
@@ -519,10 +562,14 @@ async def handle_inspect(
         if tool_name:
             for tool in server_tools:
                 if tool.get("name") == tool_name:
-                    # Replace empty descriptions with helpful message
-                    if not tool.get("description"):
-                        tool = dict(tool)  # Make a copy to avoid modifying original
-                        tool["description"] = "No description available"
+                    description = tool.get("description", "")
+                    if not description or description.strip() == "":
+                        words = tool_name.replace("_", " ").split()
+                        description = (
+                            f"Tool: {' '.join(word.capitalize() for word in words)}"
+                        )
+                        tool = dict(tool)
+                        tool["description"] = description
                     content = [{"type": "text", "text": json.dumps(tool, indent=2)}]
                     return {
                         "jsonrpc": "2.0",
@@ -543,11 +590,13 @@ async def handle_inspect(
         tools_info = []
         for tool in server_tools:
             description = tool.get("description", "")
+            tool_name_local = tool.get("name", "")
+            if not description or description.strip() == "":
+                words = tool_name_local.replace("_", " ").split()
+                description = f"Tool: {' '.join(word.capitalize() for word in words)}"
             tool_info = {
-                "name": tool.get("name"),
-                "description": description
-                if description
-                else "No description available",
+                "name": tool_name_local,
+                "description": description,
                 "inputSchema": tool.get("inputSchema", {}),
             }
             tools_info.append(tool_info)

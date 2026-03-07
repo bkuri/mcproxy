@@ -30,6 +30,82 @@ from sandbox.security import (
     MAX_CODE_SIZE_BYTES,
 )
 
+
+def get_blocked_functions() -> list[str]:
+    """Return list of functions blocked in sandbox for security.
+
+    Returns:
+        List of blocked function names with descriptions
+    """
+    return [
+        "eval()",
+        "exec()",
+        "compile()",
+        "open() (file operations)",
+        "input()",
+        "__import__()",
+        "breakpoint()",
+        "hasattr()",
+        "getattr()",
+        "setattr()",
+        "delattr()",
+        "os.system()",
+        "os.popen()",
+        "subprocess.* (all subprocess calls)",
+        "pickle.loads() / pickle.load()",
+        "marshal.loads() / marshal.load()",
+        "importlib.import_module()",
+    ]
+
+
+def get_blocked_imports() -> list[str]:
+    """Return list of modules blocked from import.
+
+    Returns:
+        List of blocked module names
+    """
+    return [
+        "os",
+        "sys",
+        "subprocess",
+        "socket",
+        "http",
+        "urllib",
+        "requests",
+        "shutil",
+        "tempfile",
+        "multiprocessing",
+        "pickle",
+        "marshal",
+        "importlib",
+        "builtins",
+    ]
+
+
+def get_blocked_attributes() -> list[str]:
+    """Return list of blocked dunder attributes.
+
+    Returns:
+        List of blocked attribute names
+    """
+    return [
+        "__class__",
+        "__bases__",
+        "__subclasses__",
+        "__globals__",
+        "__locals__",
+        "__code__",
+        "__builtins__",
+        "__dict__",
+        "__mro__",
+        "__init__",
+        "__new__",
+        "__reduce__",
+        "__getstate__",
+        "__setstate__",
+    ]
+
+
 if TYPE_CHECKING:
     pass
 
@@ -99,7 +175,10 @@ class SandboxExecutor:
 
         is_safe, danger_error = validate_code_for_dangerous_patterns(code_for_analysis)
         if not is_safe and danger_error:
-            return False, f"Dangerous pattern detected: {danger_error['error']}"
+            return (
+                False,
+                f"Dangerous pattern detected: {danger_error['error']}. Call get_blocked_functions() for full list.",
+            )
 
         try:
             tree = ast.parse(code_for_analysis)
@@ -108,11 +187,17 @@ class SandboxExecutor:
 
         blocked = self._check_blocked_imports(tree)
         if blocked:
-            return False, f"Blocked import detected: {blocked}"
+            return (
+                False,
+                f"Blocked import detected: {blocked}. Call get_blocked_imports() for full list.",
+            )
 
         blocked_builtin = self._check_blocked_builtins(tree)
         if blocked_builtin:
-            return False, f"Blocked builtin detected: {blocked_builtin}"
+            return (
+                False,
+                f"Blocked builtin detected: {blocked_builtin}(). Call get_blocked_functions() for full list.",
+            )
 
         return True, ""
 
@@ -407,6 +492,66 @@ import ast
 
 {RUNTIME_CLASSES}
 
+def get_blocked_functions():
+    """Return list of functions blocked in sandbox for security."""
+    return [
+        "eval()",
+        "exec()",
+        "compile()",
+        "open() (file operations)",
+        "input()",
+        "__import__()",
+        "breakpoint()",
+        "hasattr()",
+        "getattr()",
+        "setattr()",
+        "delattr()",
+        "os.system()",
+        "os.popen()",
+        "subprocess.* (all subprocess calls)",
+        "pickle.loads() / pickle.load()",
+        "marshal.loads() / marshal.load()",
+        "importlib.import_module()",
+    ]
+
+def get_blocked_imports():
+    """Return list of modules blocked from import."""
+    return [
+        "os",
+        "sys",
+        "subprocess",
+        "socket",
+        "http",
+        "urllib",
+        "requests",
+        "shutil",
+        "tempfile",
+        "multiprocessing",
+        "pickle",
+        "marshal",
+        "importlib",
+        "builtins",
+    ]
+
+def get_blocked_attributes():
+    """Return list of blocked dunder attributes."""
+    return [
+        "__class__",
+        "__bases__",
+        "__subclasses__",
+        "__globals__",
+        "__locals__",
+        "__code__",
+        "__builtins__",
+        "__dict__",
+        "__mro__",
+        "__init__",
+        "__new__",
+        "__reduce__",
+        "__getstate__",
+        "__setstate__",
+    ]
+
 _PARALLEL_MAX_CONCURRENCY = {self._max_concurrency}
 _ipc_client = _IPCClient()
 _manifest_data = json.loads({repr(manifest_json)})
@@ -428,7 +573,7 @@ try:
     _old_stdout = sys.stdout
     sys.stdout = io.StringIO()
     
-    local_vars = {{"__builtins__": __builtins__, "api": api, "stash": stash, "parallel": parallel, "json": json, "re": re, "sys": sys}}
+    local_vars = {{"__builtins__": __builtins__, "api": api, "stash": stash, "parallel": parallel, "json": json, "re": re, "sys": sys, "get_blocked_functions": get_blocked_functions, "get_blocked_imports": get_blocked_imports, "get_blocked_attributes": get_blocked_attributes}}
     
     # Try to extract and evaluate last expression for REPL behavior
     _last_expr_value = None
@@ -474,30 +619,42 @@ except NameError as e:
     # Check for common mistakes
     error_str = str(_error)
     
-    # Pattern 1: server__tool() direct call
-    match = re.search(r"name '([\\w]+__[\\w]+)' is not defined", error_str)
-    if match:
-        tool_name = match.group(1)
-        parts = tool_name.split("__", 1)
-        if len(parts) == 2:
-            server, tool = parts
-            _error = f"""NameError: '{{tool_name}}' is not a function.
+    # Pattern: blocked builtin access
+    blocked_names = ["eval", "exec", "compile", "open", "input", "__import__", "breakpoint", "hasattr", "getattr", "setattr", "delattr"]
+    found_blocked = False
+    for _bn in blocked_names:
+        if f"name '{{_bn}}'" in error_str.lower() or f"name '{{_bn}}'" in error_str:
+            _error = f"""NameError: '{{_bn}}' is blocked for security.
+
+Call get_blocked_functions() to see all blocked functions."""
+            found_blocked = True
+            break
+    
+    if not found_blocked:
+        # Pattern 1: server__tool() direct call
+        match = re.search(r"name '([\\w]+__[\\w]+)' is not defined", error_str)
+        if match:
+            tool_name = match.group(1)
+            parts = tool_name.split("__", 1)
+            if len(parts) == 2:
+                server, tool = parts
+                _error = f"""NameError: '{{tool_name}}' is not a function.
 
 Use api.server() to call tools:
 
     result = api.server("{{server}}").{{tool}}(...)
 
 Available: api.manifest()"""
-    elif "call_tool" in error_str and "is not defined" in error_str:
-        # Pattern 2: call_tool without api prefix
-        _error = """NameError: 'call_tool' is not defined.
+        elif "call_tool" in error_str and "is not defined" in error_str:
+            # Pattern 2: call_tool without api prefix
+            _error = """NameError: 'call_tool' is not defined.
 
 Use api.call_tool():
 
     result = api.call_tool("server", "tool", {{"arg": "value"}})"""
-    elif re.search(r"name '(server|manifest)' is not defined", error_str):
-        # Pattern 3: Using 'server' directly
-        _error = """NameError: Use the 'api' object to access tools.
+        elif re.search(r"name '(server|manifest)' is not defined", error_str):
+            # Pattern 3: Using 'server' directly
+            _error = """NameError: Use the 'api' object to access tools.
 
     result = api.server("name").tool(args)
 
