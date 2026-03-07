@@ -651,8 +651,11 @@ async def handle_inspect(
                     description = tool.get("description", "")
                     if not description or description.strip() == "":
                         words = tool_name.replace("_", " ").split()
+                        tool_name_formatted = " ".join(
+                            word.capitalize() for word in words
+                        )
                         description = (
-                            f"Tool: {' '.join(word.capitalize() for word in words)}"
+                            f"{tool_name_formatted} (description not provided)"
                         )
                         tool = dict(tool)
                         tool["description"] = description
@@ -679,7 +682,8 @@ async def handle_inspect(
             tool_name_local = tool.get("name", "")
             if not description or description.strip() == "":
                 words = tool_name_local.replace("_", " ").split()
-                description = f"Tool: {' '.join(word.capitalize() for word in words)}"
+                tool_name_formatted = " ".join(word.capitalize() for word in words)
+                description = f"{tool_name_formatted} (description not provided)"
             tool_info = {
                 "name": tool_name_local,
                 "description": description,
