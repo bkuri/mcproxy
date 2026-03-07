@@ -18,3 +18,4 @@
 {"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-05T19:57:53Z","event_type":"closed","id":18,"issue_id":"MCPROXY-4uh","new_value":"Tool description issue is in external home_assistant MCP server, not mcproxy. Needs to be fixed upstream in the MCP server package.","old_value":""}
 {"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-05T20:08:23Z","event_type":"created","id":19,"issue_id":"MCPROXY-i6n","new_value":"","old_value":""}
 {"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-05T20:10:43Z","event_type":"closed","id":20,"issue_id":"MCPROXY-i6n","new_value":"Fixed by adding proper string-to-boolean conversion for brief parameter. Now correctly handles string values like 'false' and '0'.","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-06T20:09:06Z","event_type":"created","id":21,"issue_id":"MCPROXY-m9c","new_value":"","old_value":""}
