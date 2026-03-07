@@ -835,11 +835,22 @@ print(json.dumps(output))
                     "result": result,
                 }
             except Exception as e:
+                error_msg = str(e)
                 logger.error(f"[IPC] Tool call failed: {server}.{tool}: {e}")
+
+                # Enhance timeout errors with context
+                if "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
+                    error_msg = (
+                        f"Upstream MCP server '{server}' timed out. "
+                        f"The tool '{tool}' did not respond within the configured timeout. "
+                        f"This is a server-side issue, not a mcproxy issue. "
+                        f"Original error: {error_msg}"
+                    )
+
                 response = {
                     "call_id": call_id,
                     "status": "error",
-                    "error": str(e),
+                    "error": error_msg,
                 }
 
             writer.write(orjson.dumps(response))

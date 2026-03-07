@@ -363,8 +363,15 @@ def handle_help(msg_id: Any, arguments: Dict[str, Any]) -> Dict[str, Any]:
             "actions": {
                 "execute": {
                     "description": "Run Python code with access to MCP tools",
-                    "usage": "mcproxy(action='execute', code='...', namespace='...')",
-                    "available_objects": ["api", "parallel", "mcproxy"],
+                    "usage": "mcproxy(action='execute', code='...', namespace='...', timeout_secs=30)",
+                    "available_objects": {
+                        "api": "Access MCP servers: api.server('name').tool(args)",
+                        "parallel": "Execute multiple tool calls concurrently: parallel([lambda: ...])",
+                        "mcproxy": "Call mcproxy from within code: mcproxy(action='search', ...)",
+                    },
+                    "parameters": {
+                        "timeout_secs": "Optional execution timeout (default: 30 seconds)"
+                    },
                 },
                 "search": {
                     "description": "Discover available servers and tools",
@@ -398,14 +405,19 @@ def handle_help(msg_id: Any, arguments: Dict[str, Any]) -> Dict[str, Any]:
                     "code": "mcproxy(action='help', topic='sandbox')",
                 },
                 {
-                    "description": "Run parallel tool calls",
-                    "code": "mcproxy(action='execute', code='parallel([lambda: api.server(\"s1\").tool1(), lambda: api.server(\"s2\").tool2()])', namespace='dev')",
+                    "description": "Run parallel tool calls (faster than sequential)",
+                    "code": 'mcproxy(action=\'execute\', code=\'results = parallel([\\n    lambda: api.server("wikipedia").search(query="Python"),\\n    lambda: api.server("wikipedia").search(query="JavaScript")\\n])\', namespace=\'dev\')',
                 },
             ],
             "quick_start": {
                 "step_1_discover": "mcproxy(action='search', query='', namespace='dev')",
                 "step_2_inspect": "mcproxy(action='inspect', server='wikipedia', namespace='dev')",
                 "step_3_execute": "mcproxy(action='execute', code='api.server(\"wikipedia\").search(query=\"Python\")', namespace='dev')",
+            },
+            "tips": {
+                "parallel_execution": "Use parallel() for multiple tool calls - much faster than sequential",
+                "timeout_errors": "If you see timeout errors, they're from upstream MCP servers (not mcproxy). Try increasing timeout_secs.",
+                "server_discovery": "Use search(query='') to list all available servers and their tool counts",
             },
         }
 
