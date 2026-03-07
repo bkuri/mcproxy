@@ -18,7 +18,7 @@ Tool Inspection:
 """
 
 RUNTIME_CLASSES = """
-import json
+import orjson
 import os
 import socket
 
@@ -45,7 +45,7 @@ class _IPCClient:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         try:
             sock.connect(self._sock_path)
-            sock.sendall(json.dumps(request).encode("utf-8"))
+            sock.sendall(orjson.dumps(request))
             sock.shutdown(socket.SHUT_WR)
 
             response_data = b""
@@ -55,7 +55,7 @@ class _IPCClient:
                     break
                 response_data += chunk
 
-            response = json.loads(response_data.decode("utf-8"))
+            response = orjson.loads(response_data)
 
             if response.get("status") == "error":
                 raise RuntimeError(response.get("error", "Unknown IPC error"))
@@ -69,10 +69,9 @@ class _IPCClient:
                     first_item = content[0]
                     if isinstance(first_item, dict) and first_item.get("type") == "text":
                         text = first_item.get("text", "")
-                        # Try to parse as JSON, return parsed or raw text
                         try:
-                            return json.loads(text)
-                        except (json.JSONDecodeError, TypeError):
+                            return orjson.loads(text)
+                        except (orjson.JSONDecodeError, TypeError):
                             return text
             
             return result

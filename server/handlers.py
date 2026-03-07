@@ -409,7 +409,7 @@ def handle_help(msg_id: Any, arguments: Dict[str, Any]) -> Dict[str, Any]:
             },
         }
 
-    content = [{"type": "text", "text": json.dumps(help_data, indent=2)}]
+    content = [{"type": "text", "text": json.dumps(help_data)}]
     return {"jsonrpc": "2.0", "id": msg_id, "result": {"content": content}}
 
 
@@ -494,7 +494,7 @@ async def handle_search(
                 "Isolated namespaces (e.g., 'system', 'home') require explicit namespace parameter."
             )
 
-        content = [{"type": "text", "text": json.dumps(results, indent=2)}]
+        content = [{"type": "text", "text": json.dumps(results)}]
         return {"jsonrpc": "2.0", "id": msg_id, "result": {"content": content}}
 
     except Exception as e:
@@ -579,7 +579,7 @@ async def handle_execute(
             session=session,
         )
 
-        content = [{"type": "text", "text": json.dumps(result, indent=2)}]
+        content = [{"type": "text", "text": json.dumps(result)}]
         return {"jsonrpc": "2.0", "id": msg_id, "result": {"content": content}}
 
     except Exception as e:
@@ -659,7 +659,7 @@ async def handle_inspect(
                         )
                         tool = dict(tool)
                         tool["description"] = description
-                    content = [{"type": "text", "text": json.dumps(tool, indent=2)}]
+                    content = [{"type": "text", "text": json.dumps(tool)}]
                     return {
                         "jsonrpc": "2.0",
                         "id": msg_id,
@@ -691,7 +691,7 @@ async def handle_inspect(
             }
             tools_info.append(tool_info)
 
-        content = [{"type": "text", "text": json.dumps(tools_info, indent=2)}]
+        content = [{"type": "text", "text": json.dumps(tools_info)}]
         return {"jsonrpc": "2.0", "id": msg_id, "result": {"content": content}}
 
     except Exception as e:

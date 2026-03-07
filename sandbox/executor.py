@@ -13,6 +13,7 @@ Features:
 import asyncio
 import ast
 import json
+import orjson
 import os
 import shutil
 import tempfile
@@ -802,14 +803,14 @@ print(json.dumps(output))
                 return
 
             try:
-                request = json.loads(data.decode("utf-8"))
-            except json.JSONDecodeError as e:
+                request = orjson.loads(data)
+            except orjson.JSONDecodeError as e:
                 response = {
                     "call_id": None,
                     "status": "error",
                     "error": f"Invalid JSON: {e}",
                 }
-                writer.write(json.dumps(response).encode("utf-8"))
+                writer.write(orjson.dumps(response))
                 await writer.drain()
                 writer.close()
                 await writer.wait_closed()
@@ -841,7 +842,7 @@ print(json.dumps(output))
                     "error": str(e),
                 }
 
-            writer.write(json.dumps(response).encode("utf-8"))
+            writer.write(orjson.dumps(response))
             await writer.drain()
 
         except Exception as e:
