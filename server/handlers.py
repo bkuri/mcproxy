@@ -58,6 +58,11 @@ META_TOOLS = [
                     "type": "integer",
                     "description": "Execution timeout in seconds (for action='execute')",
                 },
+                "retries": {
+                    "type": "integer",
+                    "description": "Number of retries for failed tool calls (for action='execute', default: 0)",
+                    "default": 0,
+                },
                 "max_depth": {
                     "type": "integer",
                     "description": "Maximum search depth (for action='search', default: 2)",
@@ -363,14 +368,15 @@ def handle_help(msg_id: Any, arguments: Dict[str, Any]) -> Dict[str, Any]:
             "actions": {
                 "execute": {
                     "description": "Run Python code with access to MCP tools",
-                    "usage": "mcproxy(action='execute', code='...', namespace='...', timeout_secs=30)",
+                    "usage": "mcproxy(action='execute', code='...', namespace='...', timeout_secs=30, retries=0)",
                     "available_objects": {
                         "api": "Access MCP servers: api.server('name').tool(args)",
                         "parallel": "Execute multiple tool calls concurrently: parallel([lambda: ...])",
                         "mcproxy": "Call mcproxy from within code: mcproxy(action='search', ...)",
                     },
                     "parameters": {
-                        "timeout_secs": "Optional execution timeout (default: 30 seconds)"
+                        "timeout_secs": "Optional execution timeout (default: 30 seconds)",
+                        "retries": "Number of retries for failed tool calls (default: 0). Only retries on timeout/network errors with exponential backoff.",
                     },
                 },
                 "search": {
@@ -416,8 +422,9 @@ def handle_help(msg_id: Any, arguments: Dict[str, Any]) -> Dict[str, Any]:
             },
             "tips": {
                 "parallel_execution": "Use parallel() for multiple tool calls - much faster than sequential",
-                "timeout_errors": "If you see timeout errors, they're from upstream MCP servers (not mcproxy). Try increasing timeout_secs.",
+                "timeout_errors": "If you see timeout errors, they're from upstream MCP servers (not mcproxy). Try increasing timeout_secs or use retries=3 for automatic retry.",
                 "server_discovery": "Use search(query='') to list all available servers and their tool counts",
+                "automatic_retries": "Use retries=N to automatically retry failed tool calls. Only retries on timeout/network errors with exponential backoff (100ms, 200ms, 400ms, ...).",
             },
         }
 
@@ -552,6 +559,7 @@ async def handle_execute(
     param_namespace = params.get("namespace")
     effective_namespace = param_namespace or connection_namespace
     timeout_secs = params.get("timeout_secs")
+    retries = params.get("retries", 0)
 
     log_ns = f" namespace={effective_namespace}" if effective_namespace else ""
     log_sess = f" session={session_id}" if session_id else ""
@@ -589,6 +597,7 @@ async def handle_execute(
             namespace=effective_namespace,
             timeout_secs=timeout_secs,
             session=session,
+            retries=retries,
         )
 
         content = [{"type": "text", "text": json.dumps(result)}]

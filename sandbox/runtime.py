@@ -21,12 +21,14 @@ RUNTIME_CLASSES = """
 import orjson
 import os
 import socket
+import time
 
 
 class _IPCClient:
-    def __init__(self):
+    def __init__(self, retries=0):
         self._sock_path = os.environ.get("MCPROXY_IPC_SOCK")
         self._call_id = 0
+        self._retries = retries
 
     def call(self, server, tool, args):
         if not self._sock_path:
@@ -34,6 +36,31 @@ class _IPCClient:
                 "IPC socket not available. MCPROXY_IPC_SOCK environment variable not set."
             )
 
+        last_error = None
+        for attempt in range(self._retries + 1):
+            try:
+                return self._call_once(server, tool, args)
+            except Exception as e:
+                last_error = e
+                error_msg = str(e).lower()
+                
+                # Only retry on timeout/network errors
+                is_retryable = (
+                    "timeout" in error_msg or
+                    "timed out" in error_msg or
+                    "connection" in error_msg or
+                    "network" in error_msg
+                )
+                
+                # Don't retry if not retryable or last attempt
+                if not is_retryable or attempt == self._retries:
+                    raise
+                
+                # Exponential backoff: 100ms, 200ms, 400ms, etc.
+                delay = 0.1 * (2 ** attempt)
+                time.sleep(delay)
+
+    def _call_once(self, server, tool, args):
         self._call_id += 1
         request = {
             "call_id": self._call_id,

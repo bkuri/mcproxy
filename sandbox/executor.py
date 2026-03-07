@@ -303,6 +303,7 @@ class SandboxExecutor:
         timeout_secs: Optional[int] = None,
         dependencies: Optional[List[str]] = None,
         session: Optional[Any] = None,
+        retries: int = 0,
     ) -> Dict[str, Any]:
         """Execute user code in a uv subprocess with IPC support.
 
@@ -312,6 +313,7 @@ class SandboxExecutor:
             timeout_secs: Execution timeout (uses default if None)
             dependencies: Optional list of pip dependencies
             session: Optional SessionStash for session-scoped storage
+            retries: Number of retries for failed tool calls (default: 0)
 
         Returns:
             Dict with status, result, traceback, execution_time_ms
@@ -329,7 +331,9 @@ class SandboxExecutor:
 
         access_control = NamespaceAccessControl(self._manifest)
 
-        wrapped_code = self._wrap_code(code, namespace, access_control, session)
+        wrapped_code = self._wrap_code(
+            code, namespace, access_control, session, retries
+        )
 
         start_time = time.perf_counter()
 
@@ -442,6 +446,7 @@ class SandboxExecutor:
         namespace: str,
         access_control: NamespaceAccessControl,
         session: Optional[Any] = None,
+        retries: int = 0,
     ) -> str:
         """Wrap user code with sandbox infrastructure.
 
@@ -450,6 +455,7 @@ class SandboxExecutor:
             namespace: Namespace for access control
             access_control: Access control instance
             session: Optional SessionStash for session-scoped storage
+            retries: Number of retries for failed tool calls (default: 0)
 
         Returns:
             Wrapped code that includes api, stash, and parallel APIs
@@ -554,7 +560,8 @@ def get_blocked_attributes():
     ]
 
 _PARALLEL_MAX_CONCURRENCY = {self._max_concurrency}
-_ipc_client = _IPCClient()
+_RETRIES = {retries}
+_ipc_client = _IPCClient(_RETRIES)
 _manifest_data = json.loads({repr(manifest_json)})
 _manifest = _Manifest(_manifest_data)
 _registry = _CapabilityRegistry(_manifest)
