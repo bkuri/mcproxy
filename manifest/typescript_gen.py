@@ -79,17 +79,19 @@ def generate_compact_instructions(
     min_words_display = "any" if min_words <= 0 else f"{min_words}+"
 
     lines = [
-        "MCProxy v3.1 - Single Tool API",
+        "MCProxy v3.2 - Single Tool API",
         "",
         "Tool: mcproxy(action, ...)",
-        "  Actions: execute, search, inspect",
+        "  Actions: execute, search, inspect, help",
         "  Response: {status, result, stdout (print output), traceback, execution_time_ms}",
         "",
         "EXECUTE:",
-        "  mcproxy(action='execute', code='...', namespace='...')",
+        "  mcproxy(action='execute', code='...', namespace='...', timeout_secs=30, retries=0)",
         "  - Python code with tool access via api.server('name').tool(args)",
         "  - Results auto-unwrapped (string/list/dict)",
         "  - stdout captures print() output",
+        "  - timeout_secs: execution timeout (default: 30)",
+        "  - retries: auto-retry on timeout/network errors (default: 0)",
         "",
         "  Example:",
         '    mcproxy(action="execute", code="print(api.server(\'s\').tool())")',
