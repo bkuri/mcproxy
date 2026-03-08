@@ -1,9 +1,61 @@
-# MCProxy v2.0 - MCP Gateway with Code Mode
+# MCProxy v3.1 - Intelligent MCP Gateway
 
-A lightweight MCP gateway that aggregates multiple stdio MCP servers through a single SSE endpoint. **v2.0 introduces Code Mode** — a Forgemax-inspired architecture that reduces context window usage by ~90% (15K → 1K tokens).
+> **🚀 v4.0 Roadmap Now Available!** See [ROADMAP.md](./ROADMAP.md) for the vision of the ultimate MCP gateway with intelligent caching, reasoning engine, and predictive prefetching.
 
-**Status**: v2.0.0 - Code Mode Release  
+A lightweight MCP gateway that aggregates multiple stdio MCP servers through a single SSE endpoint. **v3.1 features Single Tool API** — unified `mcproxy` meta-tool with execute/search/inspect actions.
+
+**Status**: v3.1.0 - Single Tool API | **Next**: v4.0-alpha (10 weeks)  
 **Python**: 3.11+ | **Memory**: <512MB | **Port**: 12010
+
+---
+
+## 🚀 Roadmap - v4.x "Ultimate MCP Gateway"
+
+**v4.0 is coming!** 51 carefully planned features across 4 releases over 18 months.
+
+### What's Coming
+
+**v4.0 (10 weeks)** - Intelligence + Performance
+- 🚀 **Intelligent Caching** - 50% fewer tool calls, 3x faster workflows
+- 🧠 **Built-in Reasoning** - Agents think before acting (80% error reduction)
+- 🔍 **Self-Correcting Tools** - Fuzzy matching + auto-inspect (60% fewer errors)
+- ⚡ **Predictive Prefetching** - Anticipates agent needs (50% latency reduction)
+- 🛡️ **Budget System** - Prevents runaway agents (100% abuse prevention)
+
+**v4.1 (4 weeks)** - Security + Extensibility
+- 🔐 Token-based authentication
+- 🔑 Secret management (Vault/AWS)
+- 🔌 Plugin system
+- 🪝 Webhook events
+
+**v4.2 (4 weeks)** - Advanced Optimization
+- 🧮 Adaptive TTL learning
+- ⚡ Auto-parallelization
+- 📊 Advanced observability
+
+**v5.0 (8 weeks)** - Scale + Accessibility
+- 🌍 Multi-region deployment
+- 🎨 Visual workflow builder
+- 🤖 Natural language API
+
+### Quick Links
+
+- 📋 **[Full Roadmap](./ROADMAP.md)** - Detailed feature specs, timeline, ROI analysis
+- ⚡ **[Upcoming Features](./UPCOMING_FEATURES.md)** - Quick reference for users
+- 🎯 **[Task Tracker](https://github.com/your-repo/mcproxy/issues)** - Track progress with beads
+
+### Track Progress
+
+```bash
+# List all v4.x tasks
+bd list --status open --all
+
+# View specific feature
+bd show MCPROXY-adt  # Intelligent Caching System
+
+# Check what's ready
+bd ready
+```
 
 ---
 
