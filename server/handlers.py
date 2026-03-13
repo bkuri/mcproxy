@@ -383,14 +383,14 @@ def handle_help(msg_id: Any, arguments: Dict[str, Any]) -> Dict[str, Any]:
             "actions": {
                 "execute": {
                     "description": "Run Python code with access to MCP tools",
-                    "usage": "mcproxy(action='execute', code='...', namespace='...', timeout_secs=30, retries=0)",
+                    "usage": "mcproxy(action='execute', code='...', namespace='...', timeout_secs=60, retries=0)",
                     "available_objects": {
                         "api": "Access MCP servers: api.server('name').tool(args)",
                         "parallel": "Execute multiple tool calls concurrently: parallel([lambda: ...])",
                         "mcproxy": "Call mcproxy from within code: mcproxy(action='search', ...)",
                     },
                     "parameters": {
-                        "timeout_secs": "Optional execution timeout (default: 30 seconds)",
+                        "timeout_secs": "Optional execution timeout (default: 60 seconds)",
                         "retries": "Number of retries for failed tool calls (default: 0). Only retries on timeout/network errors with exponential backoff.",
                     },
                 },
@@ -614,6 +614,17 @@ async def handle_execute(
             session=session,
             retries=retries,
         )
+
+        tool_time_ms = result.get("tool_time_ms", 0)
+        execution_time_ms = result.get("execution_time_ms", 0)
+        overhead_ms = execution_time_ms - tool_time_ms
+        result["overhead_ms"] = overhead_ms
+
+        if tool_time_ms > 5000:
+            logger.warning(
+                f"[SLOW_TOOL]{log_ns}{log_sess} tool_time={tool_time_ms}ms "
+                f"overhead={overhead_ms}ms - slowness is from upstream MCP server, not mcproxy"
+            )
 
         content = [{"type": "text", "text": json.dumps(result)}]
         return {"jsonrpc": "2.0", "id": msg_id, "result": {"content": content}}

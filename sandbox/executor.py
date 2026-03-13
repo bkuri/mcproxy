@@ -133,7 +133,7 @@ class SandboxExecutor:
         manifest: "AccessControlConfig",
         tool_executor: Callable,
         uv_path: str = "uv",
-        default_timeout_secs: int = 30,
+        default_timeout_secs: int = 60,
         max_concurrency: int = 5,
         pool: Optional["SandboxPool"] = None,
     ):
@@ -332,6 +332,7 @@ class SandboxExecutor:
                 "result": None,
                 "traceback": f"Validation error: {error}",
                 "execution_time_ms": 0,
+                "tool_time_ms": 0,
             }
 
         access_control = NamespaceAccessControl(self._manifest)
@@ -368,6 +369,7 @@ class SandboxExecutor:
                 "result": result.get("result"),
                 "traceback": result.get("traceback"),
                 "execution_time_ms": result.get("execution_time_ms", 0),
+                "tool_time_ms": result.get("tool_time_ms", 0),
             }
             if result.get("stdout"):
                 response["stdout"] = result.get("stdout")
@@ -424,6 +426,7 @@ class SandboxExecutor:
                     "result": result.get("result"),
                     "traceback": result.get("traceback"),
                     "execution_time_ms": execution_time_ms,
+                    "tool_time_ms": result.get("tool_time_ms", 0),
                 }
 
                 # Include stdout if it has content
@@ -441,6 +444,7 @@ class SandboxExecutor:
                     "result": None,
                     "traceback": f"Failed to parse result: {e}\nOutput: {stdout[:1000]}",
                     "execution_time_ms": execution_time_ms,
+                    "tool_time_ms": 0,
                 }
 
         except asyncio.TimeoutError:
@@ -461,6 +465,7 @@ class SandboxExecutor:
                     f"  - Use action=trace to diagnose where time is spent"
                 ),
                 "execution_time_ms": execution_time_ms,
+                "tool_time_ms": 0,
             }
 
         except Exception as e:
@@ -471,6 +476,7 @@ class SandboxExecutor:
                 "result": None,
                 "traceback": str(e),
                 "execution_time_ms": execution_time_ms,
+                "tool_time_ms": 0,
             }
 
     async def _apply_stash_updates_async(

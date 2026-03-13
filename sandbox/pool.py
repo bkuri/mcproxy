@@ -53,6 +53,7 @@ for line in sys.stdin:
         # Set up environment
         import io
         
+        _TraceCollector.get().reset()
         _PARALLEL_MAX_CONCURRENCY = request.get("max_concurrency", 5)
         _RETRIES = retries
         _manifest_data = json.loads(manifest_json) if manifest_json else {{}}
@@ -115,6 +116,7 @@ for line in sys.stdin:
             "result": _result,
             "stdout": _stdout_output,
             "traceback": _error,
+            "tool_time_ms": _TraceCollector.get().get_total_tool_time_ms(),
         }}
         print(json.dumps(response), flush=True)
         

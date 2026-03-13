@@ -87,7 +87,7 @@ def init_v2_components(
             manifest=sandbox_manifest,
             tool_executor=tool_executor,
             uv_path=config.get("sandbox", {}).get("uv_path", "uv"),
-            default_timeout_secs=config.get("sandbox", {}).get("timeout_secs", 30),
+            default_timeout_secs=config.get("sandbox", {}).get("timeout_secs", 60),
             max_concurrency=config.get("max_parallel", 5),
             pool=pool,
         )

@@ -31,6 +31,7 @@ class _TraceCollector:
     def __init__(self):
         self._calls = []
         self._enabled = False
+        self._total_tool_time_ms = 0
     
     @classmethod
     def get(cls):
@@ -46,6 +47,7 @@ class _TraceCollector:
         self._enabled = False
     
     def record_call(self, server, tool, args, duration_ms, error=None):
+        self._total_tool_time_ms += duration_ms
         if self._enabled:
             self._calls.append({
                 "server": server,
@@ -57,6 +59,13 @@ class _TraceCollector:
     
     def get_calls(self):
         return self._calls
+    
+    def get_total_tool_time_ms(self):
+        return self._total_tool_time_ms
+    
+    def reset(self):
+        self._calls = []
+        self._total_tool_time_ms = 0
 
 
 class _IPCClient:
