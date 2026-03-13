@@ -748,6 +748,7 @@ async def handle_trace(
             timeout_secs=timeout_secs,
             session=session,
             retries=retries,
+            trace=True,  # Enable tracing
         )
         exec_ms = int((time.perf_counter() - exec_start) * 1000)
         add_event(
