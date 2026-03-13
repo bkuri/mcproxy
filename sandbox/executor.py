@@ -390,6 +390,10 @@ class SandboxExecutor:
                 if result.get("stdout"):
                     response_data["stdout"] = result.get("stdout")
 
+                # Include tool_calls if tracing was enabled
+                if "tool_calls" in result:
+                    response_data["tool_calls"] = result["tool_calls"]
+
                 return response_data
             except json.JSONDecodeError as e:
                 return {
