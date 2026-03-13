@@ -30,6 +30,7 @@ from server.lifecycle import (
     get_sandbox_executor,
     get_session_manager,
     get_tool_executor,
+    get_sandbox_pool,
 )
 
 logger = get_logger(__name__)
@@ -121,6 +122,7 @@ def init_v2_components(
     config: Optional[Dict] = None,
     tool_executor: Optional[Callable] = None,
     servers_tools: Optional[Dict[str, List]] = None,
+    pool: Optional[Any] = None,
 ) -> None:
     """Initialize v3.0 components: CapabilityRegistry and SandboxExecutor.
 
@@ -128,8 +130,9 @@ def init_v2_components(
         config: Optional configuration dict for components
         tool_executor: Callable to execute tools (server_name, tool_name, args) -> result
         servers_tools: Dict mapping server name to list of tools (from server_manager.get_all_tools())
+        pool: Optional SandboxPool for fast pooled execution
     """
-    _init_v2_components(config, tool_executor, servers_tools)
+    _init_v2_components(config, tool_executor, servers_tools, pool)
 
 
 def refresh_manifest(servers_tools: Dict[str, List]) -> None:

@@ -338,5 +338,13 @@
   "search": {
     "min_words": 2,
     "max_tools": 5
+  },
+  "sandbox": {
+    "timeout_secs": 30,
+    "pool": {
+      "size": 3,
+      "max_size": 10,
+      "idle_timeout_secs": 300
+    }
   }
 }

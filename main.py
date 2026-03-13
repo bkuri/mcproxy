@@ -19,6 +19,7 @@ from config_watcher import ConfigError, load_config
 from logging_config import get_logger, setup_logging
 from mcp_server import create_mcp_server
 from server import app, init_v2_components, refresh_manifest, set_server_manager
+from server.lifecycle import init_sandbox_pool, shutdown_sandbox_pool
 from server.handlers import set_mcproxy_config
 
 logger = get_logger(__name__)
@@ -135,11 +136,20 @@ Examples:
     total_tools = sum(len(t) for t in tools.values())
     logger.info(f"Servers ready: {len(tools)} running with {total_tools} tools")
 
-    # Initialize v2.0 components (CapabilityRegistry, SandboxExecutor)
-    init_v2_components(
-        config, tool_executor=hot_reload_manager.call_tool, servers_tools=tools
+    # Initialize sandbox pool for fast execution
+    pool = await init_sandbox_pool(
+        tool_executor=hot_reload_manager.call_tool,
+        config=config,
     )
-    logger.info("v2.0 components initialized (search/execute meta-tools ready)")
+
+    # Initialize v2.0 components (CapabilityRegistry, SandboxExecutor with pool)
+    init_v2_components(
+        config,
+        tool_executor=hot_reload_manager.call_tool,
+        servers_tools=tools,
+        pool=pool,
+    )
+    logger.info("v2.0 components initialized with sandbox pool")
 
     # Link capability registry to hot_reload_manager for namespace/group updates
     from server import get_capability_registry
@@ -212,6 +222,9 @@ async def shutdown() -> None:
     # Stop all servers
     if hot_reload_manager:
         await hot_reload_manager.stop_all()
+
+    # Shutdown sandbox pool
+    await shutdown_sandbox_pool()
 
     logger.info("Shutdown complete")
     sys.exit(0)

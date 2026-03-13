@@ -25,6 +25,9 @@ from code_validator import validate_code_for_dangerous_patterns
 from logging_config import get_logger
 from sandbox.access_control import NamespaceAccessControl, AccessControlConfig
 from sandbox.runtime import RUNTIME_CLASSES
+
+if TYPE_CHECKING:
+    from sandbox.pool import SandboxPool
 from sandbox.security import (
     BLOCKED_BUILTINS,
     BLOCKED_IMPORTS,
@@ -132,6 +135,7 @@ class SandboxExecutor:
         uv_path: str = "uv",
         default_timeout_secs: int = 30,
         max_concurrency: int = 5,
+        pool: Optional["SandboxPool"] = None,
     ):
         """Initialize SandboxExecutor.
 
@@ -141,12 +145,14 @@ class SandboxExecutor:
             uv_path: Path to uv binary
             default_timeout_secs: Default execution timeout
             max_concurrency: Maximum concurrent parallel executions
+            pool: Optional SandboxPool for fast pooled execution
         """
         self._manifest = manifest
         self._tool_executor = tool_executor
         self._uv_path = uv_path
         self._default_timeout_secs = default_timeout_secs
         self._max_concurrency = max_concurrency
+        self._pool = pool
 
     def validate_code(self, code: str) -> tuple[bool, str]:
         """Validate code before execution.
@@ -330,6 +336,43 @@ class SandboxExecutor:
 
         access_control = NamespaceAccessControl(self._manifest)
 
+        if (
+            self._pool is not None
+            and session is None
+            and not dependencies
+            and not trace
+        ):
+            manifest_json = json.dumps(
+                {
+                    "servers": self._manifest.servers,
+                    "namespaces": {
+                        k: {
+                            "servers": v.get("servers", []),
+                            "extends": v.get("extends", []),
+                        }
+                        for k, v in self._manifest.namespaces.items()
+                    },
+                    "groups": self._manifest.groups,
+                }
+            )
+            result = await self._pool.execute(
+                code=code,
+                manifest_json=manifest_json,
+                namespace=namespace,
+                retries=retries,
+                max_concurrency=self._max_concurrency,
+                timeout=float(timeout),
+            )
+            response = {
+                "status": result.get("status", "error"),
+                "result": result.get("result"),
+                "traceback": result.get("traceback"),
+                "execution_time_ms": result.get("execution_time_ms", 0),
+            }
+            if result.get("stdout"):
+                response["stdout"] = result.get("stdout")
+            return response
+
         wrapped_code = self._wrap_code(
             code, namespace, access_control, session, retries, trace
         )
@@ -405,7 +448,18 @@ class SandboxExecutor:
             return {
                 "status": "error",
                 "result": None,
-                "traceback": f"Execution timed out after {timeout} seconds",
+                "traceback": (
+                    f"Execution timed out after {timeout} seconds.\n\n"
+                    f"This timeout includes:\n"
+                    f"  - Sandbox startup (~1-2s for uv subprocess)\n"
+                    f"  - Tool execution time\n"
+                    f"  - Response processing\n\n"
+                    f"Under concurrent load, sandbox startup can take longer.\n"
+                    f"Suggestions:\n"
+                    f"  - Increase timeout_secs (current: {timeout}s)\n"
+                    f"  - Reduce concurrent requests\n"
+                    f"  - Use action=trace to diagnose where time is spent"
+                ),
                 "execution_time_ms": execution_time_ms,
             }
 

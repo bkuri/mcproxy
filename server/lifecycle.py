@@ -1,9 +1,11 @@
 """Lifecycle management for MCProxy v2.0 components."""
 
+import asyncio
 from typing import Any, Callable, Dict, List, Optional
 
 from manifest import CapabilityRegistry, EventHookManager
 from sandbox import SandboxExecutor, AccessControlConfig
+from sandbox.pool import SandboxPool
 from logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -14,6 +16,7 @@ event_hook_manager: Optional[EventHookManager] = None
 sandbox_executor: Optional[SandboxExecutor] = None
 session_manager: Optional[Any] = None
 _tool_executor: Optional[Callable] = None
+sandbox_pool: Optional[SandboxPool] = None
 
 
 def set_server_manager(manager: Any) -> None:
@@ -26,6 +29,7 @@ def init_v2_components(
     config: Optional[Dict] = None,
     tool_executor: Optional[Callable] = None,
     servers_tools: Optional[Dict[str, List]] = None,
+    pool: Optional[SandboxPool] = None,
 ) -> None:
     """Initialize v2.0 components: CapabilityRegistry and SandboxExecutor.
 
@@ -33,11 +37,18 @@ def init_v2_components(
         config: Optional configuration dict for components
         tool_executor: Callable to execute tools (server_name, tool_name, args) -> result
         servers_tools: Dict mapping server name to list of tools (from server_manager.get_all_tools())
+        pool: Optional SandboxPool for fast pooled execution
     """
-    global capability_registry, sandbox_executor, event_hook_manager, _tool_executor
+    global \
+        capability_registry, \
+        sandbox_executor, \
+        event_hook_manager, \
+        _tool_executor, \
+        sandbox_pool
 
     config = config or {}
     _tool_executor = tool_executor
+    sandbox_pool = pool
 
     capability_registry = CapabilityRegistry()
 
@@ -78,9 +89,51 @@ def init_v2_components(
             uv_path=config.get("sandbox", {}).get("uv_path", "uv"),
             default_timeout_secs=config.get("sandbox", {}).get("timeout_secs", 30),
             max_concurrency=config.get("max_parallel", 5),
+            pool=pool,
         )
 
     _log_manifest_stats()
+
+
+async def init_sandbox_pool(
+    tool_executor: Callable,
+    config: Optional[Dict] = None,
+) -> SandboxPool:
+    """Initialize and start the sandbox pool.
+
+    Args:
+        tool_executor: Callable to execute tools
+        config: Optional configuration dict
+
+    Returns:
+        Started SandboxPool instance
+    """
+    global sandbox_pool
+
+    sandbox_config = config.get("sandbox", {}) if config else {}
+    pool_config = sandbox_config.get("pool", {})
+
+    sandbox_pool = SandboxPool(
+        tool_executor=tool_executor,
+        uv_path=sandbox_config.get("uv_path", "uv"),
+        pool_size=pool_config.get("size", 3),
+        max_pool_size=pool_config.get("max_size", 10),
+        idle_timeout_secs=pool_config.get("idle_timeout_secs", 300.0),
+    )
+
+    await sandbox_pool.start()
+    logger.info(f"[POOL_INIT] Sandbox pool started: {sandbox_pool.stats()}")
+    return sandbox_pool
+
+
+async def shutdown_sandbox_pool() -> None:
+    """Shutdown the sandbox pool."""
+    global sandbox_pool
+
+    if sandbox_pool:
+        await sandbox_pool.stop()
+        sandbox_pool = None
+        logger.info("[POOL_SHUTDOWN] Sandbox pool stopped")
 
 
 def refresh_manifest(servers_tools: Dict[str, List]) -> None:
@@ -178,3 +231,8 @@ def get_session_manager() -> Optional[Any]:
 def get_tool_executor() -> Optional[Callable]:
     """Get the global tool executor."""
     return _tool_executor
+
+
+def get_sandbox_pool() -> Optional[SandboxPool]:
+    """Get the global sandbox pool."""
+    return sandbox_pool
