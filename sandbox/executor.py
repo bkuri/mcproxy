@@ -304,6 +304,7 @@ class SandboxExecutor:
         dependencies: Optional[List[str]] = None,
         session: Optional[Any] = None,
         retries: int = 0,
+        trace: bool = False,
     ) -> Dict[str, Any]:
         """Execute user code in a uv subprocess with IPC support.
 
@@ -314,9 +315,10 @@ class SandboxExecutor:
             dependencies: Optional list of pip dependencies
             session: Optional SessionStash for session-scoped storage
             retries: Number of retries for failed tool calls (default: 0)
+            trace: Enable call tracing (default: False)
 
         Returns:
-            Dict with status, result, traceback, execution_time_ms
+            Dict with status, result, traceback, execution_time_ms, and optionally tool_calls
         """
         timeout = timeout_secs or self._default_timeout_secs
 
@@ -332,7 +334,7 @@ class SandboxExecutor:
         access_control = NamespaceAccessControl(self._manifest)
 
         wrapped_code = self._wrap_code(
-            code, namespace, access_control, session, retries
+            code, namespace, access_control, session, retries, trace
         )
 
         start_time = time.perf_counter()
@@ -447,6 +449,7 @@ class SandboxExecutor:
         access_control: NamespaceAccessControl,
         session: Optional[Any] = None,
         retries: int = 0,
+        trace: bool = False,
     ) -> str:
         """Wrap user code with sandbox infrastructure.
 
@@ -456,6 +459,7 @@ class SandboxExecutor:
             access_control: Access control instance
             session: Optional SessionStash for session-scoped storage
             retries: Number of retries for failed tool calls (default: 0)
+            trace: Enable call tracing (default: False)
 
         Returns:
             Wrapped code that includes api, stash, and parallel APIs
@@ -561,6 +565,7 @@ def get_blocked_attributes():
 
 _PARALLEL_MAX_CONCURRENCY = {self._max_concurrency}
 _RETRIES = {retries}
+_TRACE_ENABLED = {trace}
 _ipc_client = _IPCClient(_RETRIES)
 _manifest_data = json.loads({repr(manifest_json)})
 _manifest = _Manifest(_manifest_data)
@@ -569,6 +574,10 @@ _access_control = _NamespaceAccessControl(_registry)
 api = _APIProxy("{namespace}", _access_control, _ipc_client, _manifest)
 _stash_initial = json.loads({repr(stash_data_json)})
 stash = _StashProxy(_stash_initial)
+
+# Enable tracing if requested
+if _TRACE_ENABLED:
+    _TraceCollector.get().enable()
 
 _result = None
 _error = None
@@ -679,6 +688,10 @@ output = {{
     "traceback": _error,
     "stash_updates": stash._get_updates(),
 }}
+
+# Include trace data if tracing was enabled
+if _TRACE_ENABLED:
+    output["tool_calls"] = _TraceCollector.get().get_calls()
 
 print(json.dumps(output))
 '''
@@ -827,6 +840,7 @@ print(json.dumps(output))
             server = request.get("server")
             tool = request.get("tool")
             args = request.get("args", {})
+            call_start = time.perf_counter()
             logger.info(
                 f"[IPC_EXEC] server={server} tool={tool} args={args} type={type(args)}"
             )
@@ -836,12 +850,19 @@ print(json.dumps(output))
                 if asyncio.iscoroutine(result):
                     result = await result
 
+                call_ms = int((time.perf_counter() - call_start) * 1000)
+                logger.info(
+                    f"[IPC_EXEC_COMPLETE] server={server} tool={tool} duration_ms={call_ms}"
+                )
+
                 response = {
                     "call_id": call_id,
                     "status": "success",
                     "result": result,
+                    "duration_ms": call_ms,
                 }
             except Exception as e:
+                call_ms = int((time.perf_counter() - call_start) * 1000)
                 error_msg = str(e)
                 logger.error(f"[IPC] Tool call failed: {server}.{tool}: {e}")
 
@@ -858,6 +879,7 @@ print(json.dumps(output))
                     "call_id": call_id,
                     "status": "error",
                     "error": error_msg,
+                    "duration_ms": call_ms,
                 }
 
             writer.write(orjson.dumps(response))

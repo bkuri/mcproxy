@@ -24,6 +24,41 @@ import socket
 import time
 
 
+class _TraceCollector:
+    '''Collects trace events for debugging and performance analysis.'''
+    _instance = None
+    
+    def __init__(self):
+        self._calls = []
+        self._enabled = False
+    
+    @classmethod
+    def get(cls):
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+    
+    def enable(self):
+        self._enabled = True
+        self._calls = []
+    
+    def disable(self):
+        self._enabled = False
+    
+    def record_call(self, server, tool, args, duration_ms, error=None):
+        if self._enabled:
+            self._calls.append({
+                "server": server,
+                "tool": tool,
+                "args": args,
+                "duration_ms": duration_ms,
+                "error": error,
+            })
+    
+    def get_calls(self):
+        return self._calls
+
+
 class _IPCClient:
     def __init__(self, retries=0):
         self._sock_path = os.environ.get("MCPROXY_IPC_SOCK")
@@ -61,6 +96,7 @@ class _IPCClient:
                 time.sleep(delay)
 
     def _call_once(self, server, tool, args):
+        call_start = time.perf_counter()
         self._call_id += 1
         request = {
             "call_id": self._call_id,
@@ -83,9 +119,12 @@ class _IPCClient:
                 response_data += chunk
 
             response = orjson.loads(response_data)
+            duration_ms = int((time.perf_counter() - call_start) * 1000)
 
             if response.get("status") == "error":
-                raise RuntimeError(response.get("error", "Unknown IPC error"))
+                error = response.get("error", "Unknown IPC error")
+                _TraceCollector.get().record_call(server, tool, args, duration_ms, error)
+                raise RuntimeError(error)
 
             result = response.get("result")
             
@@ -97,11 +136,19 @@ class _IPCClient:
                     if isinstance(first_item, dict) and first_item.get("type") == "text":
                         text = first_item.get("text", "")
                         try:
-                            return orjson.loads(text)
+                            unwrapped = orjson.loads(text)
+                            _TraceCollector.get().record_call(server, tool, args, duration_ms)
+                            return unwrapped
                         except (orjson.JSONDecodeError, TypeError):
+                            _TraceCollector.get().record_call(server, tool, args, duration_ms)
                             return text
             
+            _TraceCollector.get().record_call(server, tool, args, duration_ms)
             return result
+        except Exception as e:
+            duration_ms = int((time.perf_counter() - call_start) * 1000)
+            _TraceCollector.get().record_call(server, tool, args, duration_ms, str(e))
+            raise
         finally:
             sock.close()
 

@@ -81,6 +81,10 @@ META_TOOLS = [
                     "type": "string",
                     "description": "Help topic (for action='help', e.g., 'sandbox' for security restrictions)",
                 },
+                "trace": {
+                    "type": "boolean",
+                    "description": "Enable call tracing (for action='execute', default: false)",
+                },
             },
             "required": ["action"],
         },
@@ -278,13 +282,24 @@ async def handle_tools_call(
         elif action == "help":
             return handle_help(msg_id, arguments)
 
+        elif action == "trace":
+            return await handle_trace(
+                msg_id,
+                arguments,
+                connection_namespace=namespace,
+                session_id=session_id,
+                sandbox_executor=sandbox_executor,
+                session_manager=session_manager,
+                tool_executor=tool_executor,
+            )
+
         else:
             return {
                 "jsonrpc": "2.0",
                 "id": msg_id,
                 "error": {
                     "code": -32602,
-                    "message": f"Unknown action: {action}. Supported actions: execute, search, inspect, help",
+                    "message": f"Unknown action: {action}. Supported actions: execute, search, inspect, help, trace",
                 },
             }
     except Exception as e:
@@ -609,6 +624,174 @@ async def handle_execute(
             "jsonrpc": "2.0",
             "id": msg_id,
             "error": {"code": -32000, "message": f"Execution failed: {e}"},
+        }
+
+
+async def handle_trace(
+    msg_id: Any,
+    params: Dict,
+    connection_namespace: Optional[str] = None,
+    session_id: Optional[str] = None,
+    sandbox_executor: Optional[SandboxExecutor] = None,
+    session_manager: Optional[SessionManager] = None,
+    tool_executor: Optional[Callable] = None,
+) -> Dict[str, Any]:
+    """Handle trace action - execute code with full call stack tracing.
+
+    Args:
+        msg_id: JSON-RPC message ID
+        params: Execution parameters (code, namespace, timeout_secs)
+        connection_namespace: Namespace from connection context
+        session_id: Optional session ID
+        sandbox_executor: Sandbox executor instance
+        session_manager: Session manager instance
+        tool_executor: Callable to execute tools
+
+    Returns:
+        MCP response with execution result and trace data
+    """
+    import time
+    from typing import List, Dict as TDict, Any as TAny
+
+    trace_events: List[TDict[str, TAny]] = []
+
+    def add_event(
+        step: str,
+        data: Optional[TDict[str, TAny]] = None,
+        duration_ms: Optional[int] = None,
+    ):
+        event = {
+            "timestamp": time.time(),
+            "step": step,
+        }
+        if data:
+            event["data"] = data
+        if duration_ms is not None:
+            event["duration_ms"] = duration_ms
+        trace_events.append(event)
+
+    start_time = time.perf_counter()
+    add_event("trace_start", {"action": "trace"})
+
+    code = params.get("code")
+    if not code:
+        return {
+            "jsonrpc": "2.0",
+            "id": msg_id,
+            "error": {"code": -32602, "message": "Missing required parameter: code"},
+        }
+
+    param_namespace = params.get("namespace")
+    effective_namespace = param_namespace or connection_namespace
+    timeout_secs = params.get("timeout_secs")
+    retries = params.get("retries", 0)
+
+    add_event(
+        "params_parsed",
+        {
+            "namespace": effective_namespace,
+            "timeout_secs": timeout_secs,
+            "retries": retries,
+            "code_length": len(code),
+        },
+    )
+
+    try:
+        if sandbox_executor is None:
+            return {
+                "jsonrpc": "2.0",
+                "id": msg_id,
+                "error": {
+                    "code": -32000,
+                    "message": "Sandbox executor not initialized",
+                },
+            }
+
+        if not effective_namespace:
+            return {
+                "jsonrpc": "2.0",
+                "id": msg_id,
+                "error": {
+                    "code": -32602,
+                    "message": "Missing required parameter: namespace",
+                },
+            }
+
+        validate_start = time.perf_counter()
+        is_valid, error = sandbox_executor.validate_code(code)
+        validate_ms = int((time.perf_counter() - validate_start) * 1000)
+        add_event(
+            "code_validated",
+            {
+                "valid": is_valid,
+                "error": error if error else None,
+            },
+            duration_ms=validate_ms,
+        )
+
+        if not is_valid:
+            return {
+                "jsonrpc": "2.0",
+                "id": msg_id,
+                "error": {"code": -32602, "message": f"Validation error: {error}"},
+            }
+
+        session: Optional[SessionStash] = None
+        if session_manager is not None:
+            session = await session_manager.get_or_create(session_id)
+            add_event("session_created", {"session_id": session_id})
+
+        exec_start = time.perf_counter()
+        result = await sandbox_executor.execute(
+            code,
+            namespace=effective_namespace,
+            timeout_secs=timeout_secs,
+            session=session,
+            retries=retries,
+        )
+        exec_ms = int((time.perf_counter() - exec_start) * 1000)
+        add_event(
+            "sandbox_execution_complete",
+            {
+                "status": result.get("status"),
+                "has_result": result.get("result") is not None,
+                "has_traceback": result.get("traceback") is not None,
+            },
+            duration_ms=exec_ms,
+        )
+
+        total_ms = int((time.perf_counter() - start_time) * 1000)
+        add_event(
+            "trace_complete",
+            {
+                "total_duration_ms": total_ms,
+                "event_count": len(trace_events),
+            },
+        )
+
+        trace_result = {
+            "execution_result": result,
+            "trace": {
+                "events": trace_events,
+                "summary": {
+                    "total_ms": total_ms,
+                    "validation_ms": validate_ms,
+                    "execution_ms": exec_ms,
+                    "overhead_ms": total_ms - exec_ms,
+                },
+            },
+        }
+
+        content = [{"type": "text", "text": json.dumps(trace_result)}]
+        return {"jsonrpc": "2.0", "id": msg_id, "result": {"content": content}}
+
+    except Exception as e:
+        logger.error(f"[TRACE_ERROR] {e}")
+        add_event("error", {"error": str(e)})
+        return {
+            "jsonrpc": "2.0",
+            "id": msg_id,
+            "error": {"code": -32000, "message": f"Trace failed: {e}"},
         }
 
 
