@@ -15,17 +15,6 @@
       "url": "http://192.168.50.71:12010/sse/normal",
       "enabled": true,
       "timeout": 30000
-    },
-    "home_assistant_direct": {
-      "type": "local",
-      "command": ["npx", "-y", "@coolver/home-assistant-mcp@latest"],
-      "enabled": true,
-      "environment": {
-        "PATH": "/usr/bin:/usr/local/bin:/bin",
-        "HA_AGENT_URL": "http://192.168.50.99:8099",
-        "HA_AGENT_KEY": "ZUAUTBnvtXROPLmCVU0WZPKGN50oBA6AXbneKUfyZvo"
-      },
-      "timeout": 60000
     }
   }
 }
