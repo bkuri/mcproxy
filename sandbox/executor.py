@@ -147,9 +147,6 @@ class SandboxExecutor:
         self._uv_path = uv_path
         self._default_timeout_secs = default_timeout_secs
         self._max_concurrency = max_concurrency
-        self._ipc_server: Optional[asyncio.Server] = None
-        self._ipc_sock_path: Optional[str] = None
-        self._ipc_temp_dir: Optional[str] = None
 
     def validate_code(self, code: str) -> tuple[bool, str]:
         """Validate code before execution.
@@ -421,9 +418,6 @@ class SandboxExecutor:
                 "traceback": str(e),
                 "execution_time_ms": execution_time_ms,
             }
-
-        finally:
-            await self._cleanup_ipc()
 
     async def _apply_stash_updates_async(
         self, session: Any, updates: List[Dict[str, Any]]
@@ -749,66 +743,89 @@ print(json.dumps(output))
             asyncio.TimeoutError: If timeout exceeded
             RuntimeError: If process fails
         """
-        self._ipc_temp_dir = tempfile.mkdtemp(prefix="mcproxy_ipc_")
-        self._ipc_sock_path = os.path.join(self._ipc_temp_dir, "ipc.sock")
-
-        self._ipc_server = await asyncio.start_unix_server(
-            self._handle_ipc_connection,
-            path=self._ipc_sock_path,
-        )
-        os.chmod(self._ipc_sock_path, 0o600)
-
-        env = self._build_env(namespace, access_control, self._ipc_sock_path)
-
-        # Write code to temp file to avoid "Argument list too long" error
-        # when passing large wrapped code via -c flag
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".py", delete=False
-        ) as code_file:
-            code_file.write(code)
-            code_file_path = code_file.name
+        # Create IPC resources as LOCAL variables (not instance vars)
+        # to support concurrent executions
+        ipc_temp_dir = tempfile.mkdtemp(prefix="mcproxy_ipc_")
+        ipc_sock_path = os.path.join(ipc_temp_dir, "ipc.sock")
+        ipc_server: Optional[asyncio.Server] = None
 
         try:
-            cmd = [self._uv_path, "run"]
-
-            for dep in dependencies:
-                cmd.extend(["--with", dep])
-
-            cmd.extend(["python", code_file_path])
-
-            logger.debug(f"Running uv subprocess: {' '.join(cmd[:5])}...")
-
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                env=env,
+            ipc_server = await asyncio.start_unix_server(
+                self._handle_ipc_connection,
+                path=ipc_sock_path,
             )
+            os.chmod(ipc_sock_path, 0o600)
+
+            env = self._build_env(namespace, access_control, ipc_sock_path)
+
+            # Write code to temp file to avoid "Argument list too long" error
+            # when passing large wrapped code via -c flag
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".py", delete=False
+            ) as code_file:
+                code_file.write(code)
+                code_file_path = code_file.name
 
             try:
-                stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                    process.communicate(),
-                    timeout=timeout,
+                cmd = [self._uv_path, "run"]
+
+                for dep in dependencies:
+                    cmd.extend(["--with", dep])
+
+                cmd.extend(["python", code_file_path])
+
+                logger.debug(f"Running uv subprocess: {' '.join(cmd[:5])}...")
+
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    env=env,
                 )
-            except asyncio.TimeoutError:
-                process.kill()
-                await process.wait()
-                raise
 
-            stdout = stdout_bytes.decode("utf-8", errors="replace")
-            stderr = stderr_bytes.decode("utf-8", errors="replace")
+                try:
+                    stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                        process.communicate(),
+                        timeout=timeout,
+                    )
+                except asyncio.TimeoutError:
+                    process.kill()
+                    await process.wait()
+                    raise
 
-            if process.returncode != 0:
-                error_msg = stderr or f"Process exited with code {process.returncode}"
-                raise RuntimeError(error_msg)
+                stdout = stdout_bytes.decode("utf-8", errors="replace")
+                stderr = stderr_bytes.decode("utf-8", errors="replace")
 
-            return stdout
+                if process.returncode != 0:
+                    error_msg = (
+                        stderr or f"Process exited with code {process.returncode}"
+                    )
+                    raise RuntimeError(error_msg)
+
+                return stdout
+            finally:
+                # Clean up temp code file
+                try:
+                    os.unlink(code_file_path)
+                except OSError:
+                    pass
         finally:
-            # Clean up temp file
-            try:
-                os.unlink(code_file_path)
-            except OSError:
-                pass
+            # Clean up IPC resources (local, not instance vars)
+            if ipc_server is not None:
+                ipc_server.close()
+                await ipc_server.wait_closed()
+
+            if ipc_sock_path and os.path.exists(ipc_sock_path):
+                try:
+                    os.unlink(ipc_sock_path)
+                except OSError:
+                    pass
+
+            if ipc_temp_dir and os.path.exists(ipc_temp_dir):
+                try:
+                    shutil.rmtree(ipc_temp_dir)
+                except OSError:
+                    pass
 
     async def _handle_ipc_connection(
         self,
@@ -894,24 +911,3 @@ print(json.dumps(output))
         finally:
             writer.close()
             await writer.wait_closed()
-
-    async def _cleanup_ipc(self) -> None:
-        """Clean up IPC resources."""
-        if self._ipc_server is not None:
-            self._ipc_server.close()
-            await self._ipc_server.wait_closed()
-            self._ipc_server = None
-
-        if self._ipc_sock_path and os.path.exists(self._ipc_sock_path):
-            try:
-                os.unlink(self._ipc_sock_path)
-            except OSError:
-                pass
-            self._ipc_sock_path = None
-
-        if self._ipc_temp_dir and os.path.exists(self._ipc_temp_dir):
-            try:
-                shutil.rmtree(self._ipc_temp_dir)
-            except OSError:
-                pass
-            self._ipc_temp_dir = None
