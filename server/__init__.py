@@ -1,4 +1,4 @@
-"""FastAPI SSE server for MCProxy v3.1.
+"""FastAPI SSE server for MCProxy v3.3.
 
 Exposes MCP protocol over Server-Sent Events (SSE).
 Single meta-tool: mcproxy with actions (execute, search, inspect).
@@ -35,7 +35,7 @@ from server.lifecycle import (
 
 logger = get_logger(__name__)
 
-app = FastAPI(title="MCProxy", version="3.2.0")
+app = FastAPI(title="MCProxy", version="3.3.0")
 
 
 _handle_message = create_message_handler(
