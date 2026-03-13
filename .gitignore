@@ -53,3 +53,4 @@ htmlcov/
 # Local configs
 mcp-servers.json
 config/
+.opencode/
