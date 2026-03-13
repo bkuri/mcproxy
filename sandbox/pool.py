@@ -304,6 +304,7 @@ class SandboxPool:
         self._sandboxes: List[WarmSandbox] = []
         self._next_id = 0
         self._lock = asyncio.Lock()
+        self._semaphore = asyncio.Semaphore(max_pool_size)
         self._cleanup_task: Optional[asyncio.Task] = None
 
         self._ipc_temp_dir: Optional[str] = None
@@ -471,30 +472,40 @@ class SandboxPool:
         timeout: float = 30.0,
     ) -> Dict[str, Any]:
         """Execute code using a sandbox from the pool."""
-        async with self._lock:
-            # Find available sandbox
-            available = [s for s in self._sandboxes if s.is_healthy()]
+        async with self._semaphore:
+            sandbox = None
 
-            if not available:
-                # Pool exhausted, create new if under max
-                if len(self._sandboxes) < self.max_pool_size:
-                    logger.info(
-                        f"[POOL] Creating new sandbox (pool exhausted, {len(self._sandboxes)}/{self.max_pool_size})"
-                    )
-                    sandbox = await self._create_sandbox()
-                    if sandbox:
-                        self._sandboxes.append(sandbox)
-                        available = [sandbox]
-                else:
-                    # Wait for one to become available
-                    logger.warning(
-                        f"[POOL] Pool at max capacity ({self.max_pool_size}), waiting..."
-                    )
-                    # Release lock and wait briefly
-                    # This is a simplistic approach - could use a condition variable
-                    pass
+            async with self._lock:
+                available = [s for s in self._sandboxes if s.is_healthy()]
 
-            if not available:
+                if available:
+                    sandbox = available[0]
+                    sandbox.in_use = True
+
+            if sandbox is None:
+                async with self._lock:
+                    if len(self._sandboxes) < self.max_pool_size:
+                        pass
+
+                logger.info(
+                    f"[POOL] Creating new sandbox (pool exhausted, {len(self._sandboxes)}/{self.max_pool_size})"
+                )
+                new_sandbox = await self._create_sandbox()
+
+                async with self._lock:
+                    if new_sandbox:
+                        self._sandboxes.append(new_sandbox)
+                        sandbox = new_sandbox
+                        sandbox.in_use = True
+
+            if sandbox is None:
+                async with self._lock:
+                    available = [s for s in self._sandboxes if s.is_healthy()]
+                    if available:
+                        sandbox = available[0]
+                        sandbox.in_use = True
+
+            if sandbox is None:
                 return {
                     "status": "error",
                     "result": None,
@@ -502,23 +513,21 @@ class SandboxPool:
                     "execution_time_ms": 0,
                 }
 
-            sandbox = available[0]
-            sandbox.in_use = True
+            try:
+                result = await sandbox.execute(
+                    code, manifest_json, namespace, retries, max_concurrency, timeout
+                )
+                return result
+            finally:
+                sandbox.in_use = False
 
-        try:
-            result = await sandbox.execute(
-                code, manifest_json, namespace, retries, max_concurrency, timeout
-            )
-            return result
-        finally:
-            sandbox.in_use = False
-
-            # If sandbox died, remove it
-            if not sandbox.is_healthy():
-                async with self._lock:
-                    if sandbox in self._sandboxes:
-                        self._sandboxes.remove(sandbox)
-                        logger.info(f"[POOL] Removed dead sandbox {sandbox.sandbox_id}")
+                if not sandbox.is_healthy():
+                    async with self._lock:
+                        if sandbox in self._sandboxes:
+                            self._sandboxes.remove(sandbox)
+                            logger.info(
+                                f"[POOL] Removed dead sandbox {sandbox.sandbox_id}"
+                            )
 
     async def _cleanup_loop(self):
         """Periodically clean up idle sandboxes."""
