@@ -2,7 +2,8 @@
 
 import asyncio
 import json
-from typing import Any, Callable, Dict, Optional
+import re
+from typing import Any, Callable, Dict, Optional, Tuple
 
 from fastapi import Request
 
@@ -20,6 +21,39 @@ from .sse import (
 
 logger = get_logger(__name__)
 
+
+def parse_inspect_code(code: str) -> Tuple[Optional[str], Optional[str]]:
+    """Parse code expression to extract server and tool names for inspect.
+
+    Supports patterns:
+    - api.server("name") -> returns (name, None)
+    - api.server("name").tool -> returns (name, tool)
+    - api.server('name') -> single quotes also work
+
+    Args:
+        code: Code expression like 'api.server("wikipedia").search'
+
+    Returns:
+        Tuple of (server_name, tool_name) where tool_name may be None
+    """
+    if not code:
+        return None, None
+
+    code = code.strip()
+
+    # Pattern: api.server("server_name") or api.server("server_name").tool_name
+    # Also supports single quotes
+    pattern = r"api\.server\(['\"]([\w\-]+)['\"]\)(?:\.(\w+))?"
+    match = re.match(pattern, code)
+
+    if match:
+        server_name = match.group(1)
+        tool_name = match.group(2)  # May be None
+        return server_name, tool_name
+
+    return None, None
+
+
 META_TOOLS = [
     {
         "name": "mcproxy",
@@ -36,19 +70,11 @@ META_TOOLS = [
                 },
                 "code": {
                     "type": "string",
-                    "description": "Python code to execute (for action='execute')",
+                    "description": "Code expression (for action='execute' or 'inspect'). Execute: api.server('name').tool(args). Inspect: api.server('name').tool or api.server('name')",
                 },
                 "query": {
                     "type": "string",
                     "description": "Search query for tools (for action='search'). Returns descriptions only - use inspect for schemas.",
-                },
-                "server": {
-                    "type": "string",
-                    "description": "Server name for inspection (for action='inspect')",
-                },
-                "tool": {
-                    "type": "string",
-                    "description": "Tool name for inspection (for action='inspect', optional - if omitted returns all tools for server)",
                 },
                 "namespace": {
                     "type": "string",
@@ -141,7 +167,7 @@ async def handle_initialize(
     result = {
         "protocolVersion": "2024-11-05",
         "capabilities": {"tools": {}},
-        "serverInfo": {"name": "mcproxy", "version": "3.0.0"},
+        "serverInfo": {"name": "mcproxy", "version": "3.4.0"},
     }
 
     # Generate TypeScript-style instructions from manifest
@@ -817,21 +843,25 @@ async def handle_inspect(
 
     Args:
         msg_id: JSON-RPC message ID
-        params: Inspection parameters (server, tool)
+        params: Inspection parameters:
+            - code: Code expression like 'api.server("name")' or 'api.server("name").tool'
         connection_namespace: Namespace from connection context
         capability_registry: Capability registry instance
 
     Returns:
         MCP response with tool schema or list of tool schemas
     """
-    server_name = params.get("server")
-    tool_name = params.get("tool")
+    code = params.get("code")
+    server_name, tool_name = parse_inspect_code(code or "")
 
     if not server_name:
         return {
             "jsonrpc": "2.0",
             "id": msg_id,
-            "error": {"code": -32602, "message": "Missing required parameter: server"},
+            "error": {
+                "code": -32602,
+                "message": "Missing code. Use code='api.server(\"name\").tool'",
+            },
         }
 
     try:
