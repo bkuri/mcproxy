@@ -405,6 +405,179 @@ results = parallel([
 
 Use `X-Namespace: dev` header or `/sse/dev` endpoint to control server access.
 
+## Authentication (v4.1)
+
+MCProxy v4.1 includes JWT-based authentication for agents with encrypted credential storage.
+
+### Architecture
+
+```
+Agent → JWT Token → MCProxy → Credential → Tool Execution
+         (scopes)             (injected)
+```
+
+Agents never see actual API keys. Credentials are:
+- Encrypted at rest (AES-256-GCM)
+- Injected at execution time
+- Scoped by permission level
+
+### Quick Setup
+
+**1. Set encryption key:**
+```bash
+export MCPROXY_CREDENTIAL_KEY=$(python -c "import os; print(os.urandom(32).hex())")
+```
+
+**2. Enable in config:**
+```json
+{
+  "auth": {
+    "enabled": true,
+    "jwt": {"default_ttl": 1, "min_ttl": 5, "max_ttl": 24},
+    "credentials_db": "data/credentials.db",
+    "agents_db": "data/agents.db",
+    "keys_dir": "keys/"
+  }
+}
+```
+
+**3. Register agent:**
+```python
+from auth import AgentRegistry
+registry = AgentRegistry("data/agents.db")
+creds = registry.register(
+    name="dev-assistant",
+    allowed_scopes=["github:read", "perplexity:search"],
+    namespace="dev"
+)
+# Returns: {"agent_id": "...", "client_id": "...", "client_secret": "..."}
+```
+
+**4. Store credentials:**
+```python
+from auth import CredentialStore
+store = CredentialStore("data/credentials.db")
+store.store(service="github", value="ghp_xxx", permission="read")
+store.store(service="perplexity", value="pplx-xxx")
+```
+
+**5. Configure scope mapping:**
+```json
+{
+  "credentials": {
+    "github": {"keys": {"default": "github_read", "write": "github_write"}}
+  },
+  "scopes": {
+    "github:read": "github:default",
+    "github:write": "github:write"
+  },
+  "tool_scopes": {
+    "github.repos.list": "github:read",
+    "github.repos.create": "github:write"
+  }
+}
+```
+
+### OAuth Token Endpoint
+
+```bash
+# Get token
+curl -X POST http://localhost:12010/oauth/token \
+  -d "grant_type=client_credentials" \
+  -d "client_id=agent_xxx" \
+  -d "client_secret=yyy" \
+  -d "scope=github:read"
+
+# Response: {"access_token": "eyJ...", "token_type": "Bearer", "expires_in": 3600}
+
+# Use token
+curl -X POST http://localhost:12010/sse \
+  -H "Authorization: Bearer eyJ..." \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{...}}'
+```
+
+### Credential Injection
+
+Credentials are injected into tool execution context:
+
+```json
+{
+  "credentials": {
+    "github": {
+      "keys": {
+        "default": {
+          "credential_id": "github_key",
+          "inject_as": "GITHUB_TOKEN",
+          "inject_type": "env"
+        }
+      }
+    },
+    "coinmarketcap": {
+      "keys": {
+        "default": {
+          "credential_id": "cmc_key",
+          "inject_as": "X-CMC_PRO_API_KEY",
+          "inject_type": "header"
+        }
+      }
+    }
+  }
+}
+```
+
+### Agent Management
+
+```python
+from auth import AgentRegistry
+registry = AgentRegistry("data/agents.db")
+
+# List agents
+registry.list_agents(namespace="dev")
+
+# Update scopes
+registry.update_scopes("agent_id", ["github:read", "github:write"])
+
+# Rotate secret (invalidates old credentials immediately)
+new_creds = registry.rotate_secret("agent_id")
+
+# Disable/enable
+registry.disable("agent_id")
+registry.enable("agent_id")
+```
+
+### Module Reference
+
+```python
+from auth import (
+    CredentialStore,    # Encrypted credential storage
+    AgentRegistry,      # Agent client management
+    JWTIssuer,          # Token issuance
+    JWTValidator,       # Token validation
+    ScopeResolver,      # Scope → credential mapping
+    OAuthHandler,       # OAuth endpoint handler
+    AuditLogger,        # Credential access logging
+)
+```
+
+### Files
+
+```
+auth/
+├── __init__.py           # Module exports
+├── credential_store.py   # AES-256-GCM encrypted storage
+├── jwt_keys.py           # RSA key management, JWT issuance
+├── agent_registry.py     # Agent client registry
+├── scope_resolver.py     # Scope → credential mapping
+├── oauth.py              # OAuth handler, auth context
+└── audit_logger.py       # Structured audit logging
+
+server/
+└── auth_routes.py        # OAuth token endpoint
+
+tests/
+└── test_auth.py          # Integration tests
+```
+
 ## Issue Tracking
 
 This project uses **bd (beads)** for issue tracking.

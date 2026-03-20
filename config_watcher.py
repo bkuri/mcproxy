@@ -91,6 +91,9 @@ def validate_schema(config: Dict[str, Any]) -> None:
     if "sandbox" in config:
         validate_sandbox(config["sandbox"])
 
+    if "auth" in config:
+        validate_auth(config.get("auth", {}))
+
 
 def validate_config_with_result(
     config: Dict[str, Any],
@@ -464,6 +467,56 @@ def validate_sandbox(sandbox: Dict[str, Any]) -> None:
             raise ConfigError("sandbox.memory_mb must be an integer")
         if sandbox["memory_mb"] < 1:
             raise ConfigError("sandbox.memory_mb must be at least 1")
+
+
+def validate_auth(auth: Dict[str, Any]) -> None:
+    """Validate auth configuration.
+
+    Args:
+        auth: Auth configuration dict
+
+    Raises:
+        ConfigError: If auth config is invalid
+    """
+    if not isinstance(auth, dict):
+        raise ConfigError("'auth' must be an object")
+
+    if "enabled" in auth:
+        if not isinstance(auth["enabled"], bool):
+            raise ConfigError("auth.enabled must be a boolean")
+
+    if "jwt" in auth:
+        jwt = auth["jwt"]
+        if not isinstance(jwt, dict):
+            raise ConfigError("auth.jwt must be an object")
+
+        if "algorithm" in jwt:
+            if jwt["algorithm"] != "RS256":
+                raise ConfigError("auth.jwt.algorithm must be 'RS256'")
+
+        if "default_ttl" in jwt:
+            if not isinstance(jwt["default_ttl"], int):
+                raise ConfigError("auth.jwt.default_ttl must be an integer")
+
+        if "min_ttl" in jwt:
+            if not isinstance(jwt["min_ttl"], int):
+                raise ConfigError("auth.jwt.min_ttl must be an integer")
+
+        if "max_ttl" in jwt:
+            if not isinstance(jwt["max_ttl"], int):
+                raise ConfigError("auth.jwt.max_ttl must be an integer")
+
+    if "credentials" in auth:
+        if not isinstance(auth["credentials"], dict):
+            raise ConfigError("auth.credentials must be an object")
+
+    if "scopes" in auth:
+        if not isinstance(auth["scopes"], dict):
+            raise ConfigError("auth.scopes must be an object")
+
+    if "tool_scopes" in auth:
+        if not isinstance(auth["tool_scopes"], dict):
+            raise ConfigError("auth.tool_scopes must be an object")
 
 
 def interpolate_env_vars(config: Dict[str, Any]) -> Dict[str, Any]:

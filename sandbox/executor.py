@@ -28,6 +28,7 @@ from sandbox.runtime import RUNTIME_CLASSES
 
 if TYPE_CHECKING:
     from sandbox.pool import SandboxPool
+    from auth import AuthContext, ScopeResolver
 from sandbox.security import (
     BLOCKED_BUILTINS,
     BLOCKED_IMPORTS,
@@ -136,6 +137,7 @@ class SandboxExecutor:
         default_timeout_secs: int = 60,
         max_concurrency: int = 5,
         pool: Optional["SandboxPool"] = None,
+        scope_resolver: Optional["ScopeResolver"] = None,
     ):
         """Initialize SandboxExecutor.
 
@@ -146,6 +148,7 @@ class SandboxExecutor:
             default_timeout_secs: Default execution timeout
             max_concurrency: Maximum concurrent parallel executions
             pool: Optional SandboxPool for fast pooled execution
+            scope_resolver: Optional ScopeResolver for credential injection
         """
         self._manifest = manifest
         self._tool_executor = tool_executor
@@ -153,6 +156,7 @@ class SandboxExecutor:
         self._default_timeout_secs = default_timeout_secs
         self._max_concurrency = max_concurrency
         self._pool = pool
+        self._scope_resolver = scope_resolver
 
     def validate_code(self, code: str) -> tuple[bool, str]:
         """Validate code before execution.
@@ -308,6 +312,7 @@ class SandboxExecutor:
         session: Optional[Any] = None,
         retries: int = 0,
         trace: bool = False,
+        auth_context: Optional["AuthContext"] = None,
     ) -> Dict[str, Any]:
         """Execute user code in a uv subprocess with IPC support.
 
@@ -319,6 +324,7 @@ class SandboxExecutor:
             session: Optional SessionStash for session-scoped storage
             retries: Number of retries for failed tool calls (default: 0)
             trace: Enable call tracing (default: False)
+            auth_context: Optional AuthContext for credential injection
 
         Returns:
             Dict with status, result, traceback, execution_time_ms, and optionally tool_calls
@@ -337,12 +343,15 @@ class SandboxExecutor:
 
         access_control = NamespaceAccessControl(self._manifest)
 
-        if (
+        use_pool = (
             self._pool is not None
             and session is None
             and not dependencies
             and not trace
-        ):
+            and auth_context is None
+        )
+
+        if use_pool and self._pool is not None:
             manifest_json = json.dumps(
                 {
                     "servers": self._manifest.servers,
@@ -388,6 +397,7 @@ class SandboxExecutor:
                 access_control,
                 timeout,
                 dependencies or [],
+                auth_context,
             )
 
             execution_time_ms = int((time.perf_counter() - start_time) * 1000)
@@ -786,6 +796,7 @@ print(json.dumps(output))
         access_control: NamespaceAccessControl,
         timeout: int,
         dependencies: List[str],
+        auth_context: Optional["AuthContext"] = None,
     ) -> str:
         """Run code in uv subprocess with IPC support.
 
@@ -795,6 +806,7 @@ print(json.dumps(output))
             access_control: Access control instance
             timeout: Timeout in seconds
             dependencies: List of pip dependencies
+            auth_context: Optional AuthContext for credential injection
 
         Returns:
             stdout from subprocess
@@ -803,15 +815,18 @@ print(json.dumps(output))
             asyncio.TimeoutError: If timeout exceeded
             RuntimeError: If process fails
         """
-        # Create IPC resources as LOCAL variables (not instance vars)
-        # to support concurrent executions
         ipc_temp_dir = tempfile.mkdtemp(prefix="mcproxy_ipc_")
         ipc_sock_path = os.path.join(ipc_temp_dir, "ipc.sock")
         ipc_server: Optional[asyncio.Server] = None
 
+        async def handle_ipc_with_auth(
+            reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+        ) -> None:
+            await self._handle_ipc_connection(reader, writer, auth_context)
+
         try:
             ipc_server = await asyncio.start_unix_server(
-                self._handle_ipc_connection,
+                handle_ipc_with_auth,
                 path=ipc_sock_path,
             )
             os.chmod(ipc_sock_path, 0o600)
@@ -891,12 +906,14 @@ print(json.dumps(output))
         self,
         reader: asyncio.StreamReader,
         writer: asyncio.StreamWriter,
+        auth_context: Optional["AuthContext"] = None,
     ) -> None:
         """Handle incoming IPC connection from sandbox subprocess.
 
         Args:
             reader: Stream reader for incoming data
             writer: Stream writer for outgoing data
+            auth_context: Optional AuthContext for credential injection
         """
         try:
             data = await reader.read(65536)
@@ -926,8 +943,46 @@ print(json.dumps(output))
                 f"[IPC_EXEC] server={server} tool={tool} args={args} type={type(args)}"
             )
 
+            if args is None:
+                args = {}
+
+            injected_args = dict(args)
+
+            if self._scope_resolver is not None and auth_context is not None:
+                fq_tool_name = f"{server}.{tool}"
+                try:
+                    resolved = self._scope_resolver.resolve_for_tool(
+                        fq_tool_name, auth_context.scopes
+                    )
+                    if resolved is not None:
+                        if resolved.inject_type == "env":
+                            env_key = f"_env_{resolved.inject_as}"
+                            injected_args[env_key] = resolved.value
+                        elif resolved.inject_type == "header":
+                            header_key = f"_header_{resolved.inject_as}"
+                            injected_args[header_key] = resolved.value
+                        logger.debug(
+                            f"[IPC_CREDENTIAL] Injected {resolved.inject_type} "
+                            f"'{resolved.inject_as}' for tool {fq_tool_name}"
+                        )
+                except Exception as cred_error:
+                    call_ms = int((time.perf_counter() - call_start) * 1000)
+                    error_msg = str(cred_error)
+                    logger.error(f"[IPC_CREDENTIAL_ERROR] {error_msg}")
+                    response = {
+                        "call_id": call_id,
+                        "status": "error",
+                        "error": error_msg,
+                        "duration_ms": call_ms,
+                    }
+                    writer.write(orjson.dumps(response))
+                    await writer.drain()
+                    writer.close()
+                    await writer.wait_closed()
+                    return
+
             try:
-                result = self._tool_executor(server, tool, args)
+                result = self._tool_executor(server, tool, injected_args)
                 if asyncio.iscoroutine(result):
                     result = await result
 
@@ -947,7 +1002,6 @@ print(json.dumps(output))
                 error_msg = str(e)
                 logger.error(f"[IPC] Tool call failed: {server}.{tool}: {e}")
 
-                # Enhance timeout errors with context
                 if "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
                     error_msg = (
                         f"Upstream MCP server '{server}' timed out. "

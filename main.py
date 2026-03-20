@@ -18,7 +18,13 @@ from config_reloader import ConfigReloader, HotReloadServerManager
 from config_watcher import ConfigError, load_config
 from logging_config import get_logger, setup_logging
 from mcp_server import create_mcp_server
-from server import app, init_v2_components, refresh_manifest, set_server_manager
+from server import (
+    app,
+    configure_auth,
+    init_v2_components,
+    refresh_manifest,
+    set_server_manager,
+)
 from server.lifecycle import init_sandbox_pool, shutdown_sandbox_pool
 from server.handlers import set_mcproxy_config
 
@@ -113,6 +119,61 @@ Examples:
     except ConfigError as e:
         logger.error(f"Failed to load configuration: {e}")
         sys.exit(1)
+
+    # Initialize authentication system
+    auth_config = config.get("auth", {})
+    if auth_config.get("enabled", False):
+        from auth import (
+            AgentRegistry,
+            CredentialStore,
+            CredentialError,
+            JWTIssuer,
+            JWTKeyManager,
+            JWTValidator,
+            OAuthHandler,
+            ScopeResolver,
+        )
+
+        data_dir = Path("data")
+        data_dir.mkdir(exist_ok=True)
+
+        cred_db_path = auth_config.get("credentials_db", "data/credentials.db")
+        agent_db_path = auth_config.get("agents_db", "data/agents.db")
+        keys_dir = auth_config.get("keys_dir", "keys")
+
+        try:
+            cred_store = CredentialStore(cred_db_path)
+            logger.info(f"Initialized credential store at {cred_db_path}")
+        except CredentialError as e:
+            logger.error(f"Failed to initialize credential store: {e}")
+            logger.error(
+                "Set MCPROXY_CREDENTIAL_KEY environment variable (32-byte hex string)"
+            )
+            sys.exit(1)
+
+        agent_registry = AgentRegistry(agent_db_path)
+        logger.info(f"Initialized agent registry at {agent_db_path}")
+
+        key_manager = JWTKeyManager(keys_dir)
+        key_manager.ensure_keys()
+        logger.info(f"Initialized JWT keys at {keys_dir}")
+
+        jwt_issuer = JWTIssuer(key_manager)
+        jwt_validator = JWTValidator(key_manager)
+
+        oauth_handler = OAuthHandler(agent_registry, jwt_issuer, jwt_validator)
+        logger.info("Initialized OAuth handler")
+
+        scope_mappings = auth_config.get("scope_mappings", {})
+        tool_scopes = auth_config.get("tool_scopes", {})
+        scope_resolver = ScopeResolver(cred_store, scope_mappings, tool_scopes)
+        logger.info("Initialized scope resolver")
+
+        configure_auth(oauth_handler, auth_config)
+        logger.info("Authentication enabled")
+    else:
+        configure_auth(None, None)
+        logger.info("Authentication disabled")
 
     # Initialize hot-reload capable server manager
     def on_server_ready(server_name: str, tool_count: int) -> None:
