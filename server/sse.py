@@ -6,10 +6,12 @@ from typing import Any, AsyncGenerator, Dict, Optional
 
 from fastapi import HTTPException, Request
 from fastapi.responses import StreamingResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from logging_config import get_logger
 
 logger = get_logger(__name__)
+security = HTTPBearer(auto_error=False)
 
 
 def validate_namespace(namespace: str, capability_registry: Optional[Any]) -> bool:
@@ -69,6 +71,55 @@ def resolve_default_namespace(capability_registry: Optional[Any]) -> str:
     if "public" in namespaces:
         return "public"
     return ""
+
+
+def check_auth(request: Request) -> Optional[Dict[str, Any]]:
+    """Check authentication if enabled.
+
+    Args:
+        request: FastAPI request object
+
+    Returns:
+        Auth context dict if authenticated, None if auth disabled
+
+    Raises:
+        HTTPException: If auth is required but missing/invalid
+    """
+    auth_config = getattr(request.app.state, "auth_config", None)
+
+    if not auth_config or not auth_config.get("enabled", False):
+        return None
+
+    oauth_handler = getattr(request.app.state, "oauth_handler", None)
+    if not oauth_handler:
+        return None
+
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(
+            status_code=401,
+            detail="Missing or invalid Authorization header",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    token = auth_header[7:]
+    try:
+        auth_context = oauth_handler.validate_token(token)
+        return {
+            "agent_id": auth_context.agent_id,
+            "scopes": auth_context.scopes,
+            "namespace": auth_context.namespace,
+            "tenant_id": auth_context.tenant_id,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"Auth validation failed: {e}")
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid token",
+            headers={"WWW-Authenticate": 'Bearer error="invalid_token"'},
+        )
 
 
 async def sse_event_stream(
@@ -195,6 +246,7 @@ def register_sse_endpoints(
     @app.post("/sse")
     async def handle_sse_message(request: Request) -> Dict[str, Any]:
         """Handle MCP POST messages at /sse (for OpenCode compatibility)."""
+        check_auth(request)
         return await handle_message(request)
 
     @app.post("/sse/{namespace}")
@@ -207,4 +259,5 @@ def register_sse_endpoints(
             raise HTTPException(
                 status_code=404, detail=f"Namespace not found: {namespace}"
             )
+        check_auth(request)
         return await handle_message(request, path_namespace=namespace)
