@@ -94,6 +94,49 @@ def validate_schema(config: Dict[str, Any]) -> None:
     if "auth" in config:
         validate_auth(config.get("auth", {}))
 
+    if "security" in config:
+        validate_security(config.get("security", {}))
+
+
+def validate_security(security: Dict[str, Any]) -> None:
+    """Validate security configuration.
+
+    Args:
+        security: Security configuration dictionary
+
+    Raises:
+        ConfigError: If security validation fails
+    """
+    if not isinstance(security, dict):
+        raise ConfigError("security must be a JSON object")
+
+    if "blocklist_url" in security:
+        url = security["blocklist_url"]
+        if not isinstance(url, str):
+            raise ConfigError("security.blocklist_url must be a string")
+        if not url.startswith(("https://", "http://")):
+            raise ConfigError("security.blocklist_url must be HTTP(S) URL")
+
+    if "blocklist_sync_interval" in security:
+        interval = security["blocklist_sync_interval"]
+        if not isinstance(interval, int) or interval < 60:
+            raise ConfigError("security.blocklist_sync_interval must be >= 60 seconds")
+
+    if "allow_risky_servers" in security:
+        if not isinstance(security["allow_risky_servers"], bool):
+            raise ConfigError("security.allow_risky_servers must be boolean")
+
+    if "risky_server_acknowledgments" in security:
+        acks = security["risky_server_acknowledgments"]
+        if not isinstance(acks, dict):
+            raise ConfigError("security.risky_server_acknowledgments must be an object")
+        for name, reason in acks.items():
+            if not isinstance(reason, str) or len(reason) < 10:
+                raise ConfigError(
+                    f"security.risky_server_acknowledgments.{name} "
+                    f"must be a descriptive string (>= 10 chars)"
+                )
+
 
 def validate_config_with_result(
     config: Dict[str, Any],
