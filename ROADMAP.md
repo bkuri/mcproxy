@@ -2,8 +2,8 @@
 
 > **Vision**: Build the most intelligent, performant, and reliable MCP gateway that anticipates agent needs, prevents abuse, and provides unmatched developer experience.
 
-**Current Version**: v3.1  
-**Next Release**: v4.0-alpha (Target: 10 weeks)  
+**Current Version**: v4.1.0 (Auth System ✅)  
+**Next Release**: v4.2 (Security Hardening)  
 **Ultimate Goal**: 100% Ultimate MCP Gateway by v5.0
 
 ---
@@ -17,8 +17,9 @@ MCProxy v4.x introduces **51 carefully planned features** across **4 major relea
 | Release | Timeline | Ultimate Status | Theme |
 |---------|----------|-----------------|-------|
 | **v4.0** | 10 weeks | 85% Ultimate | Intelligence + Performance |
-| **v4.1** | +4 weeks | 90% Ultimate | Security + Extensibility |
-| **v4.2** | +4 weeks | 95% Ultimate | Advanced Optimization |
+| **v4.1** | +4 weeks | 88% Ultimate | Credential Broker |
+| **v4.2** | +4 weeks | 92% Ultimate | Defense in Depth |
+| **v4.3** | +4 weeks | 95% Ultimate | Advanced Optimization |
 | **v5.0** | +8 weeks | 100% Ultimate | Scale + Accessibility |
 
 ---
@@ -180,24 +181,34 @@ Agents think before acting on dangerous operations.
 
 ---
 
-## 🔐 v4.1: Security + Extensibility (4 Weeks)
+## 🔐 v4.1: Auth System (✅ COMPLETE)
 
-### Theme: "Production-Ready + Extensible"
+### Theme: "Credential Broker"
 
-**Ship Date**: Week 14  
-**Deliverable**: Enterprise security, plugin ecosystem, real-time events
+**Ship Date**: Week 14 (COMPLETE)
+**Deliverable**: JWT authentication, credential injection, scope-based access
 
 ### Security
 
-**Token-Based Authentication** - [MCPROXY-d2j](https://github.com/your-repo/mcproxy/issues/MCPROXY-d2j)
-- Per-namespace/group tokens to lock sessions
-- Prevent namespace hopping
-- Opt-in: only namespaces with tokens require auth
+**JWT-Based Agent Authentication** - [MCPROXY-yyc]
+- OAuth 2.0 client credentials flow
+- Agents receive JWT with scopes, never see actual API keys
+- Scope-based access control with fallback chain
 
-**Secret Management** - [MCPROXY-4cn](https://github.com/your-repo/mcproxy/issues/MCPROXY-4cn)
-- Integrate with HashiCorp Vault, AWS Secrets Manager
-- Secure credential storage (no secrets in config)
-- Auto-rotation of expiring secrets
+**Encrypted Credential Store** - [MCPROXY-eoy]
+- AES-256-GCM encrypted SQLite storage
+- Credentials injected at tool execution time
+- Per-service, per-permission credential mapping
+
+**Agent Registry** - [MCPROXY-4qn]
+- Agent client management with bcrypt hashing
+- Secret rotation support
+- Enable/disable agents
+
+**Scope Resolver** - [MCPROXY-sna]
+- Scope → credential mapping
+- Fallback chain: `service:permission` → `service:default`
+- Tool-specific scope requirements
 
 ### Extensibility
 
@@ -218,11 +229,183 @@ Agents think before acting on dangerous operations.
 
 ---
 
-## 🌟 v4.2: Advanced Optimization (4 Weeks)
+## 🛡️ v4.2: Security Hardening (4 Weeks)
+
+### Theme: "Defense in Depth"
+
+**Ship Date**: Week 18
+**Deliverable**: Blocklist system, container isolation, server capability registry
+
+### Online Blocklist System
+
+**Blocklist Infrastructure** - [MCPROXY-blk]
+- GitHub-hosted `blocklist.json` with periodic sync
+- Local cache with offline fallback
+- Configurable sync interval (default: 1 hour)
+- Startup validation against cached blocklist
+
+**Server Classification** - [MCPROXY-cls]
+- Tier system: `safe`, `network`, `secret`, `risky`
+- Blocked servers: Hard block at startup with error
+- Risky servers: Require explicit acknowledgment in config
+- Unclassified servers: Warning with recommendation to classify
+
+**Blocklist Schema**:
+```json
+{
+  "blocked": {
+    "@executeautomation/tmux-mcp-server": {
+      "reasons": ["arbitrary_shell_execution", "host_filesystem_access", "credential_exposure"],
+      "severity": "critical"
+    }
+  },
+  "risky": {
+    "@executeautomation/playwright-mcp-server": {
+      "reasons": ["browser_automation", "host_filesystem_access"],
+      "severity": "high",
+      "requires_ack": true
+    }
+  }
+}
+```
+
+### Container Hardening
+
+**Shell Removal** - [MCPROXY-shl]
+- Alias `sh`, `bash`, `python` to `/dev/null` in container
+- Only `uv` and `node` available for MCP servers
+- Prevents arbitrary code execution
+
+**Filesystem Isolation** - [MCPROXY-fs]
+- Read-only root filesystem where possible
+- Credentials passed via systemd `Environment=` only (no `.env` mount)
+- `/srv` not accessible from container
+- `ProtectHome=true`, `ProtectSystem=strict`
+
+**Capability Dropping** - [MCPROXY-cap]
+- `NoNewPrivileges=true`
+- `CapDrop=ALL`
+- `PrivateTmp=true`
+- Network isolation (remove `Network=host`)
+
+### Configuration Schema
+
+```json
+{
+  "security": {
+    "blocklist_url": "https://raw.githubusercontent.com/mcproxy/blocklist/main/blocklist.json",
+    "blocklist_sync_interval": 3600,
+    "allow_risky_servers": false,
+    "risky_server_acknowledgments": {
+      "playwright": "Required for browser automation testing"
+    }
+  }
+}
+```
+
+### Success Metrics
+- **Blocked servers detected**: 100% at startup
+- **Container escape attempts**: 0 successful
+- **Credential exposure incidents**: 0
+- **False positive rate**: <1%
+
+---
+
+## 🛡️ v4.2: Security Hardening (4 Weeks)
+
+### Theme: "Defense in Depth"
+
+**Ship Date**: Week 22  
+**Deliverable**: Online blocklist system, container isolation, server capability registry
+
+### Online Blocklist System
+
+**Blocklist Infrastructure** - [MCPROXY-blk]
+- GitHub-hosted `blocklist.json` with periodic sync
+- Local cache with offline fallback to embedded blocklist
+- Configurable sync interval (default: 1 hour)
+- Startup validation against cached blocklist
+- Hot reload: Re-check on config changes
+- Manual refresh: `POST /admin/blocklist/refresh`
+
+**Server Classification** - [MCPROXY-cls]
+- Tier system: `safe`, `network`, `secret`, `risky`
+- Blocked servers: Hard block at startup with error message
+- Risky servers: Require explicit acknowledgment in config
+- Unclassified servers: Warning with recommendation to classify
+
+**Blocklist Schema**:
+```json
+{
+  "version": "2024.01.15",
+  "updated": "2024-01-15T12:00:00Z",
+  "blocked": {
+    "@executeautomation/tmux-mcp-server": {
+      "reasons": ["arbitrary_shell_execution", "host_filesystem_access", "credential_exposure"],
+      "severity": "critical"
+    }
+  },
+  "risky": {
+    "@executeautomation/playwright-mcp-server": {
+      "reasons": ["browser_automation", "host_filesystem_access"],
+      "severity": "high",
+      "requires_ack": true
+    }
+  }
+}
+```
+
+### Container Hardening
+
+**Shell Removal** - [MCPROXY-shl]
+- Alias `sh`, `bash`, `python` to `/dev/null` in container PATH
+- Only `uv` and `node` available for MCP servers
+- Prevents arbitrary code execution via shell
+- MCP servers needing Python (jesse, coinmarketcap) use venv python directly
+
+**Filesystem Isolation** - [MCPROXY-fs]
+- Read-only root filesystem where possible
+- Credentials passed via systemd `Environment=` only (no `.env` mount)
+- `/srv` not accessible from container
+- `ProtectHome=true`, `ProtectSystem=strict`
+- Mount `/srv/containers/mcproxy/config` read-only
+- Mount `/srv/containers/mcproxy/data` for credentials DB (encrypted)
+
+**Capability Dropping** - [MCPROXY-cap]
+- `NoNewPrivileges=true`
+- `CapDrop=ALL`
+- `PrivateTmp=true`
+- Network isolation (remove `Network=host`, use bridge networking)
+
+### Configuration Schema
+```json
+{
+  "security": {
+    "blocklist_enabled": true,
+    "blocklist_url": "https://raw.githubusercontent.com/mcproxy/blocklist/main/blocklist.json",
+    "blocklist_sync_interval": 3600,
+    "allow_risky_servers": false,
+    "risky_server_acknowledgments": {
+      "playwright": "Required for browser automation testing"
+    }
+  }
+}
+```
+
+### Success Metrics
+- **Blocked servers detected**: 100% at startup
+- **Container escape attempts**: 0 successful
+- **Credential exposure incidents**: 0
+- **False positive rate**: <1%
+- **Blocklist sync uptime**: 99.9%
+
+---
+
+## 🌟 v4.3: Advanced Optimization (4 Weeks)
 
 ### Theme: "Fully Optimized"
 
-**Ship Date**: Week 18  
+**Ship Date**: Week 26  
 **Deliverable**: Self-optimizing cache, auto-parallelization, advanced features
 
 ### Learning & Adaptation
@@ -326,7 +509,13 @@ Agents think before acting on dangerous operations.
 - **Tool composition usage**: 50% of users
 - **Security incidents**: Zero
 
-### v4.2 Success Metrics
+### v4.2 Success Metrics (Security Hardening)
+- **Blocked servers detected**: 100% at startup
+- **Container escape attempts**: 0 successful
+- **Credential exposure incidents**: 0
+- **False positive rate**: <1%
+
+### v4.3 Success Metrics
 - **Cache efficiency**: >90%
 - **Auto-parallelization savings**: >40% time
 - **Adaptive timeout error reduction**: 60%
@@ -480,13 +669,14 @@ Week 3-5:   [v4.0-alpha] Self-Correction + Reasoning
 Week 6-8:   [v4.0-beta]  Safety + Observability
 Week 9-10:  [v4.0-rc]    Performance + Polish
             ───────────── v4.0 RELEASE ─────────────
-Week 11-12: [v4.1]       Security (Auth + Secrets)
-Week 13-14: [v4.1]       Extensibility (Plugins + Webhooks)
+Week 11-14: [v4.1]       Auth System (COMPLETE)
             ───────────── v4.1 RELEASE ─────────────
-Week 15-16: [v4.2]       Learning + Adaptation
-Week 17-18: [v4.2]       Advanced Features
+Week 15-18: [v4.2]       Security Hardening
+Week 19-22: [v4.2]       Container Isolation
             ───────────── v4.2 RELEASE ─────────────
-Week 19-26: [v5.0]       Scale + Accessibility
+Week 23-26: [v4.3]       Advanced Optimization
+            ───────────── v4.3 RELEASE ─────────────
+Week 27-34: [v5.0]       Scale + Accessibility
             ───────────── v5.0 RELEASE ─────────────
 ```
 
@@ -515,6 +705,19 @@ That's the promise of MCProxy v4.x.
 
 ## 📜 Changelog
 
+### v4.1 (Target: Week 14)
+- JWT-Based Agent Authentication
+- Encrypted Credential Store
+- Agent Registry
+- Scope Resolver
+
+### v4.2 (Target: Week 22)
+- Online Blocklist System
+- Server Classification
+- Container Hardening (Shell Removal)
+- Filesystem Isolation
+- Capability Dropping
+
 ### v4.0-alpha (Target: Week 5)
 - Intelligent Caching System
 - Simplified Search
@@ -541,7 +744,7 @@ That's the promise of MCProxy v4.x.
 
 ---
 
-**Last Updated**: 2026-03-07  
+**Last Updated**: 2026-03-21  
 **Next Review**: Weekly during active development
 
 ---
