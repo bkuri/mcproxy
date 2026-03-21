@@ -241,3 +241,44 @@ python -c "import json; json.load(open('mcproxy.json'))"
   }
 }
 ```
+
+## Thinking Tools
+
+### Sequential Thinking
+
+Multi-step reasoning for complex problems:
+
+```python
+result = api.server("sequential_thinking").sequentialthinking(
+    thought="First, let me analyze the problem step by step",
+    thoughtNumber=1,
+    totalThoughts=3,
+    nextThoughtNeeded=True
+)
+```
+
+### Think Tool
+
+Simple thought processing:
+
+```python
+result = api.server("think_tool").think(
+    thought="Let me reason through this problem..."
+)
+```
+
+## Available Servers
+
+Common servers available:
+
+| Server | Purpose |
+|--------|---------|
+| `wikipedia` | Wikipedia search and articles |
+| `llms_txt` | Documentation access |
+| `sequential_thinking` | Multi-step reasoning |
+| `think_tool` | Simple thought processing |
+| `fear_greed_index` | Market sentiment |
+| `coinstats` | Cryptocurrency data |
+| `youtube` | YouTube video search |
+
+**Note**: Server availability varies by namespace. Run `api.manifest()` to see available servers.
