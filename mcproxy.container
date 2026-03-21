@@ -7,13 +7,20 @@ Wants=network-online.target
 [Container]
 Image=localhost/mcproxy:latest
 ContainerName=mcproxy
-Network=host
 
-# Mount configuration directory
-Volume=/srv/containers/mcproxy/config:/app/config:Z
+# Network: Use bridge instead of host for isolation
+Network=bridge
 
-# Environment variables (loaded from .env file)
-EnvironmentFile=/srv/containers/mcproxy/.env
+# Mount configuration directory (read-only)
+Volume=/srv/containers/mcproxy/config:/app/config:ro
+
+# Mount data directory for credentials DB and blocklist cache
+Volume=/srv/containers/mcproxy/data:/app/data:rw
+Volume=/srv/containers/mcproxy/cache:/app/cache:rw
+
+# Environment variables - pass directly instead of .env file
+# This prevents .env from being readable by container
+Environment=PYTHONUNBUFFERED=1
 
 # Working directory
 WorkingDirectory=/app
@@ -25,11 +32,20 @@ Exec=python main.py --log --config /app/config/mcp-servers.json
 Label=app=mcproxy
 Label=service=gateway
 
-# Security settings
+# Security settings - HARDENED v4.2
 NoNewPrivileges=true
 SecurityLabelDisable=false
 
-# Resource limits (MCProxy is lightweight)
+# Filesystem isolation
+ProtectHome=true
+ProtectSystem=strict
+PrivateTmp=true
+ReadOnlyRootfs=true
+
+# Drop all capabilities
+CapDrop=ALL
+
+# Resource limits
 Memory=512M
 MemorySwap=512M
 

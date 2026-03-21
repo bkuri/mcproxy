@@ -26,11 +26,30 @@ WORKDIR /app
 COPY --from=builder /root/.local /home/mcproxy/.local
 ENV PATH=/home/mcproxy/.local/bin:$PATH
 
+# SHELL REMOVAL - Security hardening for v4.2
+# Disable shell access to prevent arbitrary code execution
+# Only uv and node remain available for MCP servers
+RUN if [ -f /bin/sh ]; then \
+    echo '#!/bin/sh\necho "Shell disabled for security"\nexit 1' > /bin/sh.disabled && \
+    chmod +x /bin/sh.disabled && \
+    (mv /bin/sh /bin/sh.real 2>/dev/null || true) && \
+    ln -sf /bin/sh.disabled /bin/sh; fi && \
+    if [ -f /bin/bash ]; then \
+    echo '#!/bin/bash\necho "Shell disabled for security"\nexit 1' > /bin/bash.disabled && \
+    chmod +x /bin/bash.disabled && \
+    (mv /bin/bash /bin/bash.real 2>/dev/null || true) && \
+    ln -sf /bin/bash.disabled /bin/bash; fi && \
+    if [ -f /usr/bin/python3 ]; then \
+    echo '#!/usr/bin/python3\nprint("Python disabled for security")\nexit 1' > /usr/bin/python.disabled && \
+    chmod +x /usr/bin/python.disabled && \
+    (mv /usr/bin/python3 /usr/bin/python3.real 2>/dev/null || true) && \
+    ln -sf /usr/bin/python.disabled /usr/bin/python3; fi
+
+# Create directory structure
+RUN mkdir -p /app/config /app/data /app/cache && chown -R mcproxy:mcproxy /app
+
 # Copy application code
 COPY --chown=mcproxy:mcproxy *.py .
-
-# Create config directory
-RUN mkdir -p /app/config && chown -R mcproxy:mcproxy /app
 
 # Switch to non-root user
 USER mcproxy
