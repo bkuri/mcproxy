@@ -175,3 +175,23 @@
 {"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-19T22:51:48Z","event_type":"closed","id":179,"issue_id":"MCPROXY-yyc","new_value":"Closed","old_value":""}
 {"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-19T22:51:48Z","event_type":"closed","id":180,"issue_id":"MCPROXY-4qn","new_value":"Closed","old_value":""}
 {"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-19T22:51:48Z","event_type":"closed","id":181,"issue_id":"MCPROXY-sna","new_value":"Closed","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-19T22:52:09Z","event_type":"closed","id":182,"issue_id":"MCPROXY-72a","new_value":"Closed","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-19T22:52:09Z","event_type":"closed","id":183,"issue_id":"MCPROXY-lg0","new_value":"Closed","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-19T22:52:09Z","event_type":"closed","id":184,"issue_id":"MCPROXY-3a3","new_value":"Closed","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-19T22:52:09Z","event_type":"closed","id":185,"issue_id":"MCPROXY-o8v","new_value":"Closed","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-19T22:52:09Z","event_type":"closed","id":186,"issue_id":"MCPROXY-hxe","new_value":"Closed","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-19T22:52:09Z","event_type":"closed","id":187,"issue_id":"MCPROXY-iop","new_value":"Closed","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-19T22:52:29Z","event_type":"closed","id":188,"issue_id":"MCPROXY-lg0","new_value":"Closed","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-19T22:52:29Z","event_type":"closed","id":189,"issue_id":"MCPROXY-sna","new_value":"Closed","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-19T22:52:29Z","event_type":"closed","id":190,"issue_id":"MCPROXY-72a","new_value":"Closed","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-19T22:52:29Z","event_type":"closed","id":191,"issue_id":"MCPROXY-hxe","new_value":"Closed","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-19T22:52:29Z","event_type":"closed","id":192,"issue_id":"MCPROXY-o8v","new_value":"Closed","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-19T22:52:29Z","event_type":"closed","id":193,"issue_id":"MCPROXY-3a3","new_value":"Closed","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-19T22:52:29Z","event_type":"closed","id":194,"issue_id":"MCPROXY-iop","new_value":"Closed","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-19T22:52:29Z","event_type":"closed","id":195,"issue_id":"MCPROXY-jhs","new_value":"Closed","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-19T22:52:42Z","event_type":"closed","id":196,"issue_id":"MCPROXY-o8v","new_value":"Closed","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-19T22:52:42Z","event_type":"closed","id":197,"issue_id":"MCPROXY-iop","new_value":"Closed","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-19T22:52:42Z","event_type":"closed","id":198,"issue_id":"MCPROXY-jhs","new_value":"Closed","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-21T11:11:21Z","event_type":"created","id":199,"issue_id":"MCPROXY-gk2","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":"Added label: security","created_at":"2026-03-21T11:11:21Z","event_type":"label_added","id":200,"issue_id":"MCPROXY-gk2","new_value":null,"old_value":null}
+{"actor":"Bernardo Kuri","comment":"Added label: v4.2","created_at":"2026-03-21T11:11:21Z","event_type":"label_added","id":201,"issue_id":"MCPROXY-gk2","new_value":null,"old_value":null}
