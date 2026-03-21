@@ -1,6 +1,6 @@
 # MCProxy - Agent Guidelines
 
-> **Status**: v3.1 - Single Tool API
+> **Status**: v4.2 - Security Hardening
 > 
 > MCProxy is a lightweight MCP gateway that aggregates multiple stdio MCP servers through namespaced SSE endpoints.
 
@@ -577,6 +577,85 @@ server/
 tests/
 └── test_auth.py          # Integration tests
 ```
+
+## Security Hardening (v4.2)
+
+MCProxy v4.2 includes defense-in-depth security features including blocklist validation and container hardening.
+
+### Blocklist System
+
+MCProxy validates all MCP servers against a blocklist at startup:
+
+- **Blocked servers**: Servers with critical risks are BLOCKED and cannot start
+- **Risky servers**: Servers with elevated privileges require explicit acknowledgment
+- **Unclassified servers**: Warnings are logged, recommended to classify
+
+### Embedded Blocklist
+
+The blocklist includes known risky servers:
+
+```json
+{
+  "blocked": {
+    "@executeautomation/tmux-mcp-server": {
+      "reasons": ["arbitrary_shell_execution", "host_filesystem_access", "credential_exposure"],
+      "severity": "critical"
+    }
+  },
+  "risky": {
+    "@executeautomation/playwright-mcp-server": {
+      "reasons": ["browser_automation", "host_filesystem_access"],
+      "severity": "high",
+      "requires_ack": true
+    },
+    "jesse_mcp": {
+      "reasons": ["full_python_process", "has_credentials"],
+      "severity": "high",
+      "requires_ack": true
+    }
+  }
+}
+```
+
+### Configuration
+
+Admins can configure blocklist behavior in `mcproxy.json`:
+
+```json
+{
+  "security": {
+    "blocklist_enabled": true,
+    "blocklist_url": "https://raw.githubusercontent.com/mcproxy/blocklist/main/blocklist.json",
+    "blocklist_sync_interval": 3600,
+    "allow_risky_servers": false,
+    "risky_server_acknowledgments": {
+      "playwright": "Required for browser automation testing"
+    }
+  }
+}
+```
+
+### For Agents
+
+Agents should be aware that:
+
+1. **Shell access is disabled** - Agents cannot execute arbitrary shell commands via sh/bash/python in the sandbox
+2. **Risky servers may be blocked** - If a server is blocked, MCProxy will exit with an error at startup
+3. **Credentials are isolated** - API keys are injected at execution time, never exposed to agents
+4. **Namespace isolation** - Agents can only access servers in their assigned namespace
+
+### Security Validation
+
+When MCProxy starts, it validates all servers:
+
+```
+2026-03-21 12:00:13 [INFO] blocklist: Blocklist initialized: version=1.0.0, enabled=True
+2026-03-21 12:00:13 [WARNING] __main__: [BLOCKLIST] Server 'wikipedia' (wikipedia-mcp) is not classified...
+2026-03-21 12:00:13 [ERROR] __main__: [BLOCKLIST] Server validation failed:
+2026-03-21 12:00:13 [ERROR] __main__:   - SECURITY BLOCK: Server 'tmux' is blocked as critical risk
+```
+
+If blocked servers are detected, MCProxy exits with code 1.
 
 ## Issue Tracking
 
