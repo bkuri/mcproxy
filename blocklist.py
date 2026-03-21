@@ -286,6 +286,12 @@ class Blocklist:
                         f"SECURITY BLOCK: Server '{name}' ({package_name}) requires acknowledgment. "
                         f"Add to security.risky_server_acknowledgments: {{{name}: '<reason>'}}"
                     )
+                else:
+                    warnings.append(
+                        f"[WARNING] RISKY SERVER: '{name}' ({package_name}) is allowed with acknowledgment. "
+                        f"This server has elevated privileges: {', '.join(classification.reasons)}. "
+                        f"Use with caution and ensure appropriate access controls."
+                    )
 
         return errors, warnings
 
