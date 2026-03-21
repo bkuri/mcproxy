@@ -167,7 +167,7 @@ async def handle_initialize(
     result = {
         "protocolVersion": "2024-11-05",
         "capabilities": {"tools": {}},
-        "serverInfo": {"name": "mcproxy", "version": "4.1.0"},
+        "serverInfo": {"name": "mcproxy", "version": "4.2.0"},
     }
 
     # Generate TypeScript-style instructions from manifest
