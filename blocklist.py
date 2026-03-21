@@ -245,9 +245,19 @@ class Blocklist:
 
         for server in servers:
             name = server.get("name", "unknown")
-            command = server.get("command", [])
 
-            package_name = self._extract_package_name(command)
+            # Combine command and args - mcproxy.json has them separate
+            command = server.get("command", [])
+            args = server.get("args", [])
+
+            # Handle both cases: command could be a string or list
+            if isinstance(command, str):
+                command = [command]
+
+            # Combine command + args into single list
+            full_command = list(command) + list(args)
+
+            package_name = self._extract_package_name(full_command)
             if not package_name:
                 continue
 
