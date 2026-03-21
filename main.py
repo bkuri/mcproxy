@@ -120,6 +120,35 @@ Examples:
         logger.error(f"Failed to load configuration: {e}")
         sys.exit(1)
 
+    # Initialize blocklist security system
+    security_config = config.get("security", {})
+    if security_config.get("blocklist_enabled", True):
+        try:
+            from blocklist import Blocklist
+
+            blocklist = Blocklist(security_config)
+            await blocklist.initialize()
+
+            errors, warnings = blocklist.validate_servers(config.get("servers", []))
+            if warnings:
+                for warning in warnings:
+                    logger.warning(f"[BLOCKLIST] {warning}")
+            if errors:
+                logger.error("[BLOCKLIST] Server validation failed:")
+                for error in errors:
+                    logger.error(f"  - {error}")
+                sys.exit(1)
+
+            logger.info("[BLOCKLIST] Server validation passed")
+        except ImportError:
+            logger.warning(
+                "[BLOCKLIST] blocklist module not available, skipping validation"
+            )
+        except Exception as e:
+            logger.warning(
+                f"[BLOCKLIST] Initialization failed: {e}, skipping validation"
+            )
+
     # Initialize authentication system
     auth_config = config.get("auth", {})
     if auth_config.get("enabled", False):
