@@ -123,9 +123,10 @@ class Blocklist:
     async def initialize(self) -> None:
         """Initialize blocklist - load cache and start sync."""
         cached = self._load_cache()
-        self._blocklist = cached if cached is not None else {}
 
-        if self._blocklist is None:
+        if cached is not None:
+            self._blocklist = cached
+        else:
             self._blocklist = EMBEDDED_BLOCKLIST.copy()
             self._save_cache()
 
