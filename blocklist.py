@@ -293,18 +293,20 @@ class Blocklist:
         if not command:
             return None
 
-        if "npx" in command:
-            idx = command.index("npx")
-            if idx + 1 < len(command):
-                arg = command[idx + 1]
-                if arg == "-y" and idx + 2 < len(command):
-                    return command[idx + 2]
-                return arg
+        # Handle npx - could be "npx" or "/usr/bin/npx"
+        for i, arg in enumerate(command):
+            if arg.endswith("npx") or arg == "npx":
+                if i + 1 < len(command):
+                    next_arg = command[i + 1]
+                    if next_arg == "-y" and i + 2 < len(command):
+                        return command[i + 2]
+                    return next_arg
 
-        if "uvx" in command:
-            idx = command.index("uvx")
-            if idx + 1 < len(command):
-                return command[idx + 1]
+        # Handle uvx - could be "uvx" or "/usr/bin/uvx"
+        for i, arg in enumerate(command):
+            if arg.endswith("uvx") or arg == "uvx":
+                if i + 1 < len(command):
+                    return command[i + 1]
 
         return None
 
