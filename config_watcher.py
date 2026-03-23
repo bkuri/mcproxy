@@ -529,25 +529,7 @@ def validate_auth(auth: Dict[str, Any]) -> None:
             raise ConfigError("auth.enabled must be a boolean")
 
     if "jwt" in auth:
-        jwt = auth["jwt"]
-        if not isinstance(jwt, dict):
-            raise ConfigError("auth.jwt must be an object")
-
-        if "algorithm" in jwt:
-            if jwt["algorithm"] != "RS256":
-                raise ConfigError("auth.jwt.algorithm must be 'RS256'")
-
-        if "default_ttl" in jwt:
-            if not isinstance(jwt["default_ttl"], int):
-                raise ConfigError("auth.jwt.default_ttl must be an integer")
-
-        if "min_ttl" in jwt:
-            if not isinstance(jwt["min_ttl"], int):
-                raise ConfigError("auth.jwt.min_ttl must be an integer")
-
-        if "max_ttl" in jwt:
-            if not isinstance(jwt["max_ttl"], int):
-                raise ConfigError("auth.jwt.max_ttl must be an integer")
+        pass  # JWT config validation removed - handled by auth module
 
     if "credentials" in auth:
         if not isinstance(auth["credentials"], dict):

@@ -157,10 +157,6 @@ Examples:
             AgentRegistry,
             CredentialStore,
             CredentialError,
-            JWTIssuer,
-            JWTKeyManager,
-            JWTValidator,
-            OAuthHandler,
             ScopeResolver,
         )
 
@@ -169,7 +165,6 @@ Examples:
 
         cred_db_path = auth_config.get("credentials_db", "data/credentials.db")
         agent_db_path = auth_config.get("agents_db", "data/agents.db")
-        keys_dir = auth_config.get("keys_dir", "keys")
 
         try:
             cred_store = CredentialStore(cred_db_path)
@@ -184,29 +179,15 @@ Examples:
         agent_registry = AgentRegistry(agent_db_path)
         logger.info(f"Initialized agent registry at {agent_db_path}")
 
-        key_manager = JWTKeyManager(keys_dir)
-        key_manager.ensure_keys()
-        logger.info(f"Initialized JWT keys at {keys_dir}")
-
-        jwt_config = auth_config.get("jwt", {})
-        jwt_issuer = JWTIssuer(
-            key_manager,
-            default_ttl_hours=jwt_config.get("default_ttl", 1),
-            min_ttl_minutes=jwt_config.get("min_ttl", 5) * 60,
-            max_ttl_hours=jwt_config.get("max_ttl", 24),
-        )
-        jwt_validator = JWTValidator(key_manager)
-
-        oauth_handler = OAuthHandler(agent_registry, jwt_issuer, jwt_validator)
-        logger.info("Initialized OAuth handler")
-
         scope_mappings = auth_config.get("scope_mappings", {})
         tool_scopes = auth_config.get("tool_scopes", {})
         scope_resolver = ScopeResolver(cred_store, scope_mappings, tool_scopes)
         logger.info("Initialized scope resolver")
 
-        configure_auth(oauth_handler, auth_config)
-        logger.info("Authentication enabled")
+        from server.auth_middleware import configure_static_key_auth
+
+        configure_static_key_auth(agent_registry, auth_config)
+        logger.info("Authentication enabled (static API key)")
 
         admin_key_env = auth_config.get("admin_key_env", "MCPROXY_ADMIN_KEY")
         if not os.environ.get(admin_key_env):
@@ -221,7 +202,6 @@ Examples:
             register_admin_routes(app, agent_registry, auth_config)
             logger.info("Admin endpoints registered")
     else:
-        configure_auth(None, None)
         logger.info("Authentication disabled")
 
     # Initialize hot-reload capable server manager

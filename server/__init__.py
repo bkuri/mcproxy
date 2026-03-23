@@ -16,7 +16,6 @@ from logging_config import get_logger
 
 from server.sse import register_sse_endpoints
 from server.handlers import create_message_handler
-from server.auth_routes import register_auth_routes
 from server.lifecycle import (
     capability_registry,
     event_hook_manager,
@@ -165,16 +164,13 @@ def on_server_health(server_name: str, healthy: bool) -> None:
     _on_server_health(server_name, healthy)
 
 
-def configure_auth(oauth_handler: Any, auth_config: Optional[Dict] = None) -> None:
-    """Configure OAuth authentication for the app.
+def configure_auth(auth_config: Optional[dict] = None) -> None:
+    """Configure authentication (static key auth now handled in main.py).
 
     Args:
-        oauth_handler: OAuthHandler instance for token validation
-        auth_config: Optional auth configuration dict
+        auth_config: Auth configuration dict (unused - auth is configured in main.py)
     """
-    if auth_config:
-        app.state.auth_config = auth_config
-    register_auth_routes(app, oauth_handler)
+    pass
 
 
 __all__ = [

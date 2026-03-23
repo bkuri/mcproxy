@@ -229,6 +229,71 @@ async def delete_agent(
     return JSONResponse(content={"agent_id": agent_id, "deleted": True})
 
 
+@router.get("/agents/{agent_id}/api-key")
+async def get_agent_api_key(
+    request: Request,
+    agent_id: str,
+    registry: AgentRegistry = Depends(get_agent_registry),
+    _: bool = Depends(admin_auth),
+) -> JSONResponse:
+    """Get current API key for an agent."""
+    agent = registry.get_agent(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    has_api_key = bool(agent.api_key)
+    return JSONResponse(
+        content={
+            "agent_id": agent_id,
+            "has_api_key": has_api_key,
+        }
+    )
+
+
+@router.post("/agents/{agent_id}/api-key")
+async def generate_api_key(
+    request: Request,
+    agent_id: str,
+    registry: AgentRegistry = Depends(get_agent_registry),
+    _: bool = Depends(admin_auth),
+) -> JSONResponse:
+    """Generate a new API key for an agent."""
+    result = registry.rotate_api_key(agent_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    logger.info(f"Generated new API key for agent {agent_id}")
+    return JSONResponse(
+        content={
+            "agent_id": agent_id,
+            "api_key": result["api_key"],
+            "message": "API key generated. Store securely - it cannot be retrieved again once you leave this page.",
+        }
+    )
+
+
+@router.delete("/agents/{agent_id}/api-key")
+async def revoke_api_key(
+    request: Request,
+    agent_id: str,
+    registry: AgentRegistry = Depends(get_agent_registry),
+    _: bool = Depends(admin_auth),
+) -> JSONResponse:
+    """Revoke API key for an agent."""
+    result = registry.rotate_api_key(agent_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    logger.info(f"Revoked API key for agent {agent_id}")
+    return JSONResponse(
+        content={
+            "agent_id": agent_id,
+            "api_key": None,
+            "message": "API key revoked. Generate a new key to restore access.",
+        }
+    )
+
+
 def register_admin_routes(
     app, agent_registry: AgentRegistry, auth_config: dict
 ) -> None:

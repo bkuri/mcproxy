@@ -39,6 +39,16 @@ class Agent:
     updated_at: datetime
     enabled: bool = True
     metadata: Optional[Dict[str, Any]] = None
+    api_key: Optional[str] = None
+
+    @classmethod
+    def generate_api_key(cls) -> str:
+        """Generate a random URL-safe API key.
+
+        Returns:
+            Random 32-byte URL-safe string
+        """
+        return secrets.token_urlsafe(32)
 
 
 class AgentRegistry:
@@ -68,11 +78,15 @@ class AgentRegistry:
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
                     enabled INTEGER DEFAULT 1,
-                    metadata TEXT
+                    metadata TEXT,
+                    api_key TEXT UNIQUE
                 )
             """)
             conn.execute(
                 "CREATE UNIQUE INDEX IF NOT EXISTS idx_agents_client_id ON agents(client_id)"
+            )
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_agents_api_key ON agents(api_key)"
             )
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_agents_namespace ON agents(namespace)"
@@ -141,6 +155,7 @@ class AgentRegistry:
         client_id = self._generate_client_id()
         client_secret = self._generate_client_secret()
         client_secret_hash = self._hash_secret(client_secret)
+        api_key = Agent.generate_api_key()
 
         now = datetime.utcnow().isoformat()
 
@@ -154,8 +169,8 @@ class AgentRegistry:
                 """
                 INSERT INTO agents 
                 (agent_id, client_id, client_secret_hash, allowed_scopes, namespace, 
-                 tenant_id, created_at, updated_at, enabled, metadata)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+                 tenant_id, created_at, updated_at, enabled, metadata, api_key)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
             """,
                 (
                     agent_id,
@@ -167,6 +182,7 @@ class AgentRegistry:
                     now,
                     now,
                     json.dumps(meta) if meta else None,
+                    api_key,
                 ),
             )
             conn.commit()
@@ -179,6 +195,7 @@ class AgentRegistry:
             "agent_id": agent_id,
             "client_id": client_id,
             "client_secret": client_secret,
+            "api_key": api_key,
         }
 
     def authenticate(self, client_id: str, client_secret: str) -> Optional[Agent]:
@@ -198,7 +215,7 @@ class AgentRegistry:
             cursor = conn.execute(
                 """
                 SELECT agent_id, client_secret_hash, allowed_scopes, namespace,
-                       tenant_id, created_at, updated_at, enabled, metadata
+                       tenant_id, created_at, updated_at, enabled, metadata, api_key
                 FROM agents WHERE client_id = ?
             """,
                 (client_id,),
@@ -219,6 +236,7 @@ class AgentRegistry:
                 updated_at,
                 enabled,
                 meta_json,
+                api_key,
             ) = row
 
             if not enabled:
@@ -241,6 +259,7 @@ class AgentRegistry:
                 updated_at=datetime.fromisoformat(updated_at),
                 enabled=bool(enabled),
                 metadata=json.loads(meta_json) if meta_json else None,
+                api_key=api_key,
             )
         finally:
             conn.close()
@@ -261,7 +280,7 @@ class AgentRegistry:
             cursor = conn.execute(
                 """
                 SELECT agent_id, client_id, client_secret_hash, allowed_scopes, namespace,
-                       tenant_id, created_at, updated_at, enabled, metadata
+                       tenant_id, created_at, updated_at, enabled, metadata, api_key
                 FROM agents WHERE agent_id = ?
             """,
                 (agent_id,),
@@ -282,6 +301,7 @@ class AgentRegistry:
                 updated_at,
                 enabled,
                 meta_json,
+                api_key,
             ) = row
 
             return Agent(
@@ -295,6 +315,7 @@ class AgentRegistry:
                 updated_at=datetime.fromisoformat(updated_at),
                 enabled=bool(enabled),
                 metadata=json.loads(meta_json) if meta_json else None,
+                api_key=api_key,
             )
         finally:
             conn.close()
@@ -418,6 +439,93 @@ class AgentRegistry:
         finally:
             conn.close()
 
+    def find_by_api_key(self, api_key: str) -> Optional[Agent]:
+        """Find an agent by API key.
+
+        Args:
+            api_key: API key to search for
+
+        Returns:
+            Agent if found, None otherwise
+        """
+        import json
+
+        conn = sqlite3.connect(self.db_path)
+        try:
+            cursor = conn.execute(
+                """
+                SELECT agent_id, client_id, client_secret_hash, allowed_scopes, namespace,
+                       tenant_id, created_at, updated_at, enabled, metadata, api_key
+                FROM agents WHERE api_key = ?
+            """,
+                (api_key,),
+            )
+            row = cursor.fetchone()
+
+            if row is None:
+                return None
+
+            (
+                agent_id,
+                client_id,
+                secret_hash,
+                scopes_json,
+                namespace,
+                tenant_id,
+                created_at,
+                updated_at,
+                enabled,
+                meta_json,
+                api_key,
+            ) = row
+
+            return Agent(
+                agent_id=agent_id,
+                client_id=client_id,
+                client_secret_hash=secret_hash,
+                allowed_scopes=set(json.loads(scopes_json)),
+                namespace=namespace,
+                tenant_id=tenant_id,
+                created_at=datetime.fromisoformat(created_at),
+                updated_at=datetime.fromisoformat(updated_at),
+                enabled=bool(enabled),
+                metadata=json.loads(meta_json) if meta_json else None,
+                api_key=api_key,
+            )
+        finally:
+            conn.close()
+
+    def rotate_api_key(self, agent_id: str) -> Optional[str]:
+        """Rotate an agent's API key.
+
+        Args:
+            agent_id: Agent ID
+
+        Returns:
+            New API key, or None if agent not found
+        """
+        conn = sqlite3.connect(self.db_path)
+        try:
+            new_api_key = Agent.generate_api_key()
+            now = datetime.utcnow().isoformat()
+
+            cursor = conn.execute(
+                """
+                UPDATE agents 
+                SET api_key = ?, updated_at = ?
+                WHERE agent_id = ?
+            """,
+                (new_api_key, now, agent_id),
+            )
+            conn.commit()
+
+            if cursor.rowcount > 0:
+                logger.info(f"Rotated API key for agent {agent_id}")
+                return new_api_key
+            return None
+        finally:
+            conn.close()
+
     def delete(self, agent_id: str) -> bool:
         """Delete an agent.
 
@@ -458,7 +566,7 @@ class AgentRegistry:
         try:
             query = """
                 SELECT agent_id, client_id, allowed_scopes, namespace,
-                       tenant_id, created_at, updated_at, enabled, metadata
+                       tenant_id, created_at, updated_at, enabled, metadata, api_key
                 FROM agents
             """
             params = []
@@ -487,6 +595,7 @@ class AgentRegistry:
                     updated_at,
                     enabled,
                     meta_json,
+                    api_key,
                 ) = row
 
                 results.append(
@@ -500,6 +609,7 @@ class AgentRegistry:
                         "updated_at": updated_at,
                         "enabled": bool(enabled),
                         "metadata": json.loads(meta_json) if meta_json else None,
+                        "api_key": api_key,
                     }
                 )
 
