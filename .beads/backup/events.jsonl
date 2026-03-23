@@ -195,3 +195,19 @@
 {"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-21T11:11:21Z","event_type":"created","id":199,"issue_id":"MCPROXY-gk2","new_value":"","old_value":""}
 {"actor":"Bernardo Kuri","comment":"Added label: security","created_at":"2026-03-21T11:11:21Z","event_type":"label_added","id":200,"issue_id":"MCPROXY-gk2","new_value":null,"old_value":null}
 {"actor":"Bernardo Kuri","comment":"Added label: v4.2","created_at":"2026-03-21T11:11:21Z","event_type":"label_added","id":201,"issue_id":"MCPROXY-gk2","new_value":null,"old_value":null}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-21T11:11:33Z","event_type":"created","id":202,"issue_id":"MCPROXY-dbx","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":"Added label: security","created_at":"2026-03-21T11:11:33Z","event_type":"label_added","id":203,"issue_id":"MCPROXY-dbx","new_value":null,"old_value":null}
+{"actor":"Bernardo Kuri","comment":"Added label: v4.2","created_at":"2026-03-21T11:11:33Z","event_type":"label_added","id":204,"issue_id":"MCPROXY-dbx","new_value":null,"old_value":null}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-21T11:11:38Z","event_type":"created","id":205,"issue_id":"MCPROXY-2sy","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":"Added label: security","created_at":"2026-03-21T11:11:38Z","event_type":"label_added","id":206,"issue_id":"MCPROXY-2sy","new_value":null,"old_value":null}
+{"actor":"Bernardo Kuri","comment":"Added label: v4.2","created_at":"2026-03-21T11:11:38Z","event_type":"label_added","id":207,"issue_id":"MCPROXY-2sy","new_value":null,"old_value":null}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-21T11:11:43Z","event_type":"created","id":208,"issue_id":"MCPROXY-nhe","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":"Added label: security","created_at":"2026-03-21T11:11:43Z","event_type":"label_added","id":209,"issue_id":"MCPROXY-nhe","new_value":null,"old_value":null}
+{"actor":"Bernardo Kuri","comment":"Added label: v4.2","created_at":"2026-03-21T11:11:43Z","event_type":"label_added","id":210,"issue_id":"MCPROXY-nhe","new_value":null,"old_value":null}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-21T11:11:48Z","event_type":"created","id":211,"issue_id":"MCPROXY-ens","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":"Added label: security","created_at":"2026-03-21T11:11:48Z","event_type":"label_added","id":212,"issue_id":"MCPROXY-ens","new_value":null,"old_value":null}
+{"actor":"Bernardo Kuri","comment":"Added label: v4.2","created_at":"2026-03-21T11:11:48Z","event_type":"label_added","id":213,"issue_id":"MCPROXY-ens","new_value":null,"old_value":null}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-21T11:11:59Z","event_type":"created","id":214,"issue_id":"MCPROXY-3yk","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":"Added label: security","created_at":"2026-03-21T11:11:59Z","event_type":"label_added","id":215,"issue_id":"MCPROXY-3yk","new_value":null,"old_value":null}
+{"actor":"Bernardo Kuri","comment":"Added label: v4.2","created_at":"2026-03-21T11:11:59Z","event_type":"label_added","id":216,"issue_id":"MCPROXY-3yk","new_value":null,"old_value":null}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-23T14:32:46Z","event_type":"created","id":217,"issue_id":"MCPROXY-lnh","new_value":"","old_value":""}
