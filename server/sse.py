@@ -90,26 +90,15 @@ def check_auth(request: Request) -> Optional[Dict[str, Any]]:
     if not auth_config or not auth_config.get("enabled", False):
         return None
 
-    oauth_handler = getattr(request.app.state, "oauth_handler", None)
-    if not oauth_handler:
-        return None
+    from server.auth_middleware import static_key_auth
 
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        raise HTTPException(
-            status_code=401,
-            detail="Missing or invalid Authorization header",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    token = auth_header[7:]
     try:
-        auth_context = oauth_handler.validate_token(token)
+        auth_info = static_key_auth(request)
         return {
-            "agent_id": auth_context.agent_id,
-            "scopes": auth_context.scopes,
-            "namespace": auth_context.namespace,
-            "tenant_id": auth_context.tenant_id,
+            "agent_id": auth_info.get("agent_id"),
+            "scopes": auth_info.get("scopes", []),
+            "namespace": auth_info.get("namespace"),
+            "tenant_id": None,
         }
     except HTTPException:
         raise
@@ -117,7 +106,7 @@ def check_auth(request: Request) -> Optional[Dict[str, Any]]:
         logger.warning(f"Auth validation failed: {e}")
         raise HTTPException(
             status_code=401,
-            detail="Invalid token",
+            detail="Invalid API key",
             headers={"WWW-Authenticate": 'Bearer error="invalid_token"'},
         )
 

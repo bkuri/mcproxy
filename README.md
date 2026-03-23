@@ -12,7 +12,7 @@
 |---------|-------------|
 | **Code Mode API** | Single `mcproxy` meta-tool with execute/search/inspect actions |
 | **Namespace Isolation** | Group servers by privilege level with access control |
-| **JWT Authentication** | Agent auth with encrypted credential storage (v4.1) |
+| **Static API Key Auth** | Agent auth with encrypted credential storage (v4.2) |
 | **Blocklist Security** | Server validation with blocked/risky classification (v4.2) |
 | **Hot-Reload** | Add/remove servers without dropping connections |
 | **Dual Mode** | HTTP/SSE endpoint OR native MCP server over stdio |

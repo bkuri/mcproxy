@@ -85,13 +85,13 @@ Auto-unwrapped - no need for `result['content'][0]['text']`:
 - **List**: Direct iteration
 - **Dict**: Direct key access
 
-## Authentication (v4.1)
+## Authentication (v4.2)
 
-JWT-based authentication with encrypted credential storage:
+Static API key authentication with encrypted credential storage:
 
 ```
-Agent → JWT Token → MCProxy → Credential → Tool Execution
-         (scopes)             (injected)
+Agent → API Key → MCProxy → Credential → Tool Execution
+         (static)           (injected)
 ```
 
 ### Config
@@ -100,10 +100,9 @@ Agent → JWT Token → MCProxy → Credential → Tool Execution
 {
   "auth": {
     "enabled": true,
-    "jwt": {"default_ttl": 1, "min_ttl": 5, "max_ttl": 24},
     "credentials_db": "data/credentials.db",
     "agents_db": "data/agents.db",
-    "keys_dir": "keys/"
+    "admin_key_env": "MCPROXY_ADMIN_KEY"
   }
 }
 ```
@@ -114,14 +113,15 @@ Agent → JWT Token → MCProxy → Credential → Tool Execution
 from auth import AgentRegistry
 registry = AgentRegistry("data/agents.db")
 
-# Register
+# Register - automatically generates API key
 creds = registry.register(name="agent", allowed_scopes=["scope"], namespace="dev")
+# Returns: {client_id, client_secret, api_key}
 
-# Update
+# Update scopes
 registry.update_scopes("agent_id", ["scope1", "scope2"])
 
-# Rotate
-new_creds = registry.rotate_secret("agent_id")
+# Rotate API key
+new_key = registry.rotate_api_key("agent_id")
 ```
 
 ## Admin API
@@ -130,7 +130,10 @@ new_creds = registry.rotate_secret("agent_id")
 
 ```
 GET  /admin/agents              List all agents
-GET  /admin/agents/{id}         Get agent details  
+GET  /admin/agents/{id}        Get agent details  
+GET  /admin/agents/{id}/api-key    Check if API key exists
+POST /admin/agents/{id}/api-key   Generate/rotate API key
+DELETE /admin/agents/{id}/api-key  Revoke API key
 POST /admin/agents/{id}/rotate  Rotate secret
 POST /admin/agents/{id}/enable  Enable agent
 POST /admin/agents/{id}/disable Disable agent
