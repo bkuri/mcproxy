@@ -53,13 +53,15 @@ def admin_auth(request: Request) -> bool:
     Logic:
     - If MCPROXY_ADMIN_KEY env var not set: localhost only (127.0.0.1)
     - If set: require X-Admin-Key header matching the env var
+      (but still allow localhost as a fallback if no key provided)
     """
     auth_config = get_auth_config(request)
     admin_key_env = auth_config.get("admin_key_env", "MCPROXY_ADMIN_KEY")
     admin_key = os.environ.get(admin_key_env)
+    client_host = request.client.host if request.client else None
 
     if not admin_key:
-        client_host = request.client.host if request.client else None
+        # No key configured - allow localhost only
         if client_host == "127.0.0.1":
             return True
         raise HTTPException(
@@ -70,6 +72,16 @@ def admin_auth(request: Request) -> bool:
             ),
         )
 
+    # Key IS configured - require it for non-localhost requests
+    # For localhost, allow without key (backward compatibility)
+    if client_host == "127.0.0.1":
+        provided = request.headers.get("X-Admin-Key")
+        if provided != admin_key and provided is not None:
+            raise HTTPException(status_code=401, detail="Invalid admin key")
+        # Allow localhost with or without key
+        return True
+
+    # Non-localhost: require key
     provided = request.headers.get("X-Admin-Key")
     if provided != admin_key:
         raise HTTPException(status_code=401, detail="Invalid admin key")

@@ -72,7 +72,7 @@ fi
 DEPLOY_SCRIPT
     ) &
     
-    echo "⏳ Deployment scheduled (will run in background after push completes)"
+    echo "⏳ Deployment scheduled (will run in background after push completes; wait ~45s before contacting)"
 fi
 
 exit 0
