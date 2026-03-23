@@ -25,6 +25,7 @@ from server import (
     refresh_manifest,
     set_server_manager,
 )
+from server.admin_routes import register_admin_routes
 from server.lifecycle import init_sandbox_pool, shutdown_sandbox_pool
 from server.handlers import set_mcproxy_config
 
@@ -200,6 +201,19 @@ Examples:
 
         configure_auth(oauth_handler, auth_config)
         logger.info("Authentication enabled")
+
+        admin_key_env = auth_config.get("admin_key_env", "MCPROXY_ADMIN_KEY")
+        if not os.environ.get(admin_key_env):
+            if auth_config.get("enabled", False):
+                logger.warning(
+                    "SECURITY: MCPROXY_ADMIN_KEY not set. Admin endpoints will only be "
+                    "accessible from localhost. For production deployments, set "
+                    f"{admin_key_env} environment variable to secure admin API."
+                )
+
+        if auth_config.get("enabled", False):
+            register_admin_routes(app, agent_registry, auth_config)
+            logger.info("Admin endpoints registered")
     else:
         configure_auth(None, None)
         logger.info("Authentication disabled")

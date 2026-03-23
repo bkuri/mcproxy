@@ -20,6 +20,10 @@ class AuditEventType(str, Enum):
     TOKEN_ISSUED = "token_issued"
     AUTH_FAILURE = "auth_failure"
     SCOPE_DENIED = "scope_denied"
+    AGENT_DELETED = "agent_deleted"
+    AGENT_ROTATED = "agent_rotated"
+    AGENT_DISABLED = "agent_disabled"
+    AGENT_ENABLED = "agent_enabled"
 
 
 class AuditLogger:
@@ -206,6 +210,89 @@ class AuditLogger:
             extra={
                 "required_scope": required_scope,
                 "granted_scopes": granted_scopes,
+            },
+        )
+        self._log_event(event)
+
+    def log_agent_deleted(
+        self,
+        agent_id: str,
+        admin_key_id: Optional[str] = None,
+    ) -> None:
+        """Log an agent deletion event.
+
+        Args:
+            agent_id: ID of the deleted agent
+            admin_key_id: ID of admin key that performed the deletion
+        """
+        event = self._create_event(
+            event_type=AuditEventType.AGENT_DELETED,
+            agent_id=agent_id,
+            extra={
+                "admin_key_id": admin_key_id,
+            },
+        )
+        self._log_event(event)
+
+    def log_agent_rotated(
+        self,
+        agent_id: str,
+        admin_key_id: Optional[str] = None,
+        reauth_mode: bool = False,
+    ) -> None:
+        """Log an agent credential rotation event.
+
+        Args:
+            agent_id: ID of the rotated agent
+            admin_key_id: ID of admin key that performed the rotation
+            reauth_mode: Whether re-authentication was required
+        """
+        event = self._create_event(
+            event_type=AuditEventType.AGENT_ROTATED,
+            agent_id=agent_id,
+            extra={
+                "admin_key_id": admin_key_id,
+                "reauth_mode": reauth_mode,
+            },
+        )
+        self._log_event(event)
+
+    def log_agent_disabled(
+        self,
+        agent_id: str,
+        admin_key_id: Optional[str] = None,
+    ) -> None:
+        """Log an agent disable event.
+
+        Args:
+            agent_id: ID of the disabled agent
+            admin_key_id: ID of admin key that performed the disable
+        """
+        event = self._create_event(
+            event_type=AuditEventType.AGENT_DISABLED,
+            agent_id=agent_id,
+            extra={
+                "admin_key_id": admin_key_id,
+            },
+        )
+        self._log_event(event)
+
+    def log_agent_enabled(
+        self,
+        agent_id: str,
+        admin_key_id: Optional[str] = None,
+    ) -> None:
+        """Log an agent enable event.
+
+        Args:
+            agent_id: ID of the enabled agent
+            admin_key_id: ID of admin key that performed the enable
+        """
+        event = self._create_event(
+            event_type=AuditEventType.AGENT_ENABLED,
+            agent_id=agent_id,
+            extra={
+                "admin_key_id": admin_key_id,
             },
         )
         self._log_event(event)

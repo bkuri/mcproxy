@@ -561,6 +561,14 @@ def validate_auth(auth: Dict[str, Any]) -> None:
         if not isinstance(auth["tool_scopes"], dict):
             raise ConfigError("auth.tool_scopes must be an object")
 
+    if "admin_key_env" in auth:
+        if not isinstance(auth["admin_key_env"], str):
+            raise ConfigError("auth.admin_key_env must be a string")
+
+    if "rotate_reauth" in auth:
+        if not isinstance(auth["rotate_reauth"], bool):
+            raise ConfigError("auth.rotate_reauth must be a boolean")
+
 
 def interpolate_env_vars(config: Dict[str, Any]) -> Dict[str, Any]:
     """Interpolate environment variables in config values.

@@ -124,6 +124,55 @@ registry.update_scopes("agent_id", ["scope1", "scope2"])
 new_creds = registry.rotate_secret("agent_id")
 ```
 
+## Admin API
+
+### Endpoint Overview
+
+```
+GET  /admin/agents              List all agents
+GET  /admin/agents/{id}         Get agent details  
+POST /admin/agents/{id}/rotate  Rotate secret
+POST /admin/agents/{id}/enable  Enable agent
+POST /admin/agents/{id}/disable Disable agent
+DELETE /admin/agents/{id}       Delete agent
+```
+
+### Authentication
+
+Requests from **localhost** (127.0.0.1) are automatically authorized when `MCPROXY_ADMIN_KEY` is not set.
+
+For remote access, use the `X-Admin-Key` header with the configured admin key:
+
+```bash
+curl -H "X-Admin-Key: your-secret-key" http://192.168.50.71:12010/admin/agents
+```
+
+> **SECURITY WARNING**: Without `MCPROXY_ADMIN_KEY` set, admin endpoints are only accessible from localhost. If you expose MCProxy to the network without setting an admin key, anyone can access admin endpoints.
+
+### Examples
+
+```bash
+# List agents (from localhost)
+curl http://127.0.0.1:12010/admin/agents
+
+# With admin key
+curl -H "X-Admin-Key: your-secret-key" http://192.168.50.71:12010/admin/agents
+
+# Rotate agent secret
+curl -X POST -H "X-Admin-Key: your-secret-key" \
+  http://192.168.50.71:12010/admin/agents/{agent_id}/rotate
+
+# Rotate with re-auth required
+curl -X POST -H "X-Admin-Key: your-secret-key" \
+  "http://192.168.50.71:12010/admin/agents/{agent_id}/rotate?reauth=true"
+```
+
+### Environment Variables
+
+- `MCPROXY_ADMIN_KEY` - The admin key (required for production)
+- `auth.admin_key_env` - Config option to customize env var name
+- `auth.rotate_reauth` - Config option to require re-auth after rotation
+
 ## Security Hardening (v4.2)
 
 Defense-in-depth with blocklist validation and container hardening.
