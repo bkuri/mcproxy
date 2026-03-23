@@ -266,7 +266,7 @@ async def generate_api_key(
     return JSONResponse(
         content={
             "agent_id": agent_id,
-            "api_key": result["api_key"],
+            "api_key": result,
             "message": "API key generated. Store securely - it cannot be retrieved again once you leave this page.",
         }
     )
