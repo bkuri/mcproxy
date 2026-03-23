@@ -188,7 +188,13 @@ Examples:
         key_manager.ensure_keys()
         logger.info(f"Initialized JWT keys at {keys_dir}")
 
-        jwt_issuer = JWTIssuer(key_manager)
+        jwt_config = auth_config.get("jwt", {})
+        jwt_issuer = JWTIssuer(
+            key_manager,
+            default_ttl_hours=jwt_config.get("default_ttl", 1),
+            min_ttl_minutes=jwt_config.get("min_ttl", 5) * 60,
+            max_ttl_hours=jwt_config.get("max_ttl", 24),
+        )
         jwt_validator = JWTValidator(key_manager)
 
         oauth_handler = OAuthHandler(agent_registry, jwt_issuer, jwt_validator)
