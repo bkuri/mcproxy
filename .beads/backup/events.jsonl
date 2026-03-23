@@ -211,3 +211,12 @@
 {"actor":"Bernardo Kuri","comment":"Added label: security","created_at":"2026-03-21T11:11:59Z","event_type":"label_added","id":215,"issue_id":"MCPROXY-3yk","new_value":null,"old_value":null}
 {"actor":"Bernardo Kuri","comment":"Added label: v4.2","created_at":"2026-03-21T11:11:59Z","event_type":"label_added","id":216,"issue_id":"MCPROXY-3yk","new_value":null,"old_value":null}
 {"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-23T14:32:46Z","event_type":"created","id":217,"issue_id":"MCPROXY-lnh","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-23T14:33:03Z","event_type":"created","id":218,"issue_id":"MCPROXY-r2c","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-23T14:33:10Z","event_type":"created","id":219,"issue_id":"MCPROXY-0to","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-23T14:33:17Z","event_type":"created","id":220,"issue_id":"MCPROXY-7wo","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-23T14:33:24Z","event_type":"created","id":221,"issue_id":"MCPROXY-7cv","new_value":"","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-23T14:38:14Z","event_type":"closed","id":222,"issue_id":"MCPROXY-lnh","new_value":"Closed","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-23T14:38:14Z","event_type":"closed","id":223,"issue_id":"MCPROXY-r2c","new_value":"Closed","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-23T14:38:14Z","event_type":"closed","id":224,"issue_id":"MCPROXY-0to","new_value":"Closed","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-23T14:38:14Z","event_type":"closed","id":225,"issue_id":"MCPROXY-7wo","new_value":"Closed","old_value":""}
+{"actor":"Bernardo Kuri","comment":null,"created_at":"2026-03-23T15:32:31Z","event_type":"created","id":226,"issue_id":"MCPROXY-3k3","new_value":"","old_value":""}
