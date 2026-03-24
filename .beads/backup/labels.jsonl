@@ -2,6 +2,8 @@
 {"issue_id":"MCPROXY-0en","label":"refactoring"}
 {"issue_id":"MCPROXY-2sy","label":"security"}
 {"issue_id":"MCPROXY-2sy","label":"v4.2"}
+{"issue_id":"MCPROXY-362","label":"medium-priority"}
+{"issue_id":"MCPROXY-362","label":"refactoring"}
 {"issue_id":"MCPROXY-3a3","label":"api"}
 {"issue_id":"MCPROXY-3a3","label":"auth"}
 {"issue_id":"MCPROXY-3a3","label":"v4.1"}
@@ -20,6 +22,8 @@
 {"issue_id":"MCPROXY-eoy","label":"auth"}
 {"issue_id":"MCPROXY-eoy","label":"core"}
 {"issue_id":"MCPROXY-eoy","label":"v4.1"}
+{"issue_id":"MCPROXY-ggr","label":"medium-priority"}
+{"issue_id":"MCPROXY-ggr","label":"refactoring"}
 {"issue_id":"MCPROXY-gk2","label":"security"}
 {"issue_id":"MCPROXY-gk2","label":"v4.2"}
 {"issue_id":"MCPROXY-hxe","label":"auth"}
@@ -39,9 +43,15 @@
 {"issue_id":"MCPROXY-o8v","label":"auth"}
 {"issue_id":"MCPROXY-o8v","label":"execution"}
 {"issue_id":"MCPROXY-o8v","label":"v4.1"}
+{"issue_id":"MCPROXY-ru1","label":"high-priority"}
+{"issue_id":"MCPROXY-ru1","label":"refactoring"}
 {"issue_id":"MCPROXY-sna","label":"auth"}
 {"issue_id":"MCPROXY-sna","label":"config"}
 {"issue_id":"MCPROXY-sna","label":"v4.1"}
+{"issue_id":"MCPROXY-tv1","label":"low-priority"}
+{"issue_id":"MCPROXY-tv1","label":"refactoring"}
 {"issue_id":"MCPROXY-yyc","label":"auth"}
 {"issue_id":"MCPROXY-yyc","label":"core"}
 {"issue_id":"MCPROXY-yyc","label":"v4.1"}
+{"issue_id":"MCPROXY-zlg","label":"high-priority"}
+{"issue_id":"MCPROXY-zlg","label":"refactoring"}
