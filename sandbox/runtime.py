@@ -18,6 +18,7 @@ Tool Inspection:
 """
 
 RUNTIME_CLASSES = """
+import json
 import orjson
 import os
 import socket
@@ -203,7 +204,7 @@ class _IPCClient:
                             unwrapped = orjson.loads(text)
                             _TraceCollector.get().record_call(server, tool, args, duration_ms)
                             return unwrapped
-                        except (orjson.JSONDecodeError, TypeError):
+                        except (orjson.JSONDecodeError, json.JSONDecodeError, TypeError):
                             _TraceCollector.get().record_call(server, tool, args, duration_ms)
                             return text
             

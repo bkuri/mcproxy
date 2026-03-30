@@ -6,7 +6,6 @@ pre-warmed Python processes ready to execute code.
 
 import asyncio
 import json
-import json
 import orjson
 import os
 import shutil
@@ -462,15 +461,21 @@ class SandboxPool:
                 response_bytes = orjson.dumps(response)
             except Exception as serialize_err:
                 logger.error(
-                    f"[POOL_IPC] Failed to serialize response: {serialize_err}"
+                    f"[POOL_IPC] Failed to serialize response with orjson: {serialize_err}"
                 )
-                response_bytes = orjson.dumps(
-                    {
-                        "call_id": call_id,
-                        "status": "error",
-                        "error": f"Response serialization failed: {serialize_err}",
-                    }
-                )
+                try:
+                    response_bytes = json.dumps(response).encode()
+                except Exception as json_err:
+                    logger.error(
+                        f"[POOL_IPC] Failed to serialize response with json: {json_err}"
+                    )
+                    response_bytes = json.dumps(
+                        {
+                            "call_id": call_id,
+                            "status": "error",
+                            "error": f"Response serialization failed: {serialize_err}",
+                        }
+                    ).encode()
 
             if response_bytes:
                 try:
