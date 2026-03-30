@@ -6,7 +6,13 @@ pre-warmed Python processes ready to execute code.
 
 import asyncio
 import json
-import orjson
+
+try:
+    import orjson
+
+    _HAS_ORJSON = hasattr(orjson, "loads") and hasattr(orjson, "dumps")
+except ImportError:
+    _HAS_ORJSON = False
 import os
 import shutil
 import sys
@@ -417,21 +423,19 @@ class SandboxPool:
         """
         try:
             data = await reader.read(65536)
-            with open("/tmp/mcproxy_ipc_debug.log", "a") as _dbg:
-                _dbg.write(f"[IPC] Received {len(data)} bytes: {data[:200]!r}\n")
             if not data:
                 logger.debug("[POOL_IPC] Empty data received, client disconnected")
                 return
 
             try:
-                request = orjson.loads(data)
-            except (orjson.JSONDecodeError, json.JSONDecodeError) as e:
+                request = json.loads(data)
+            except json.JSONDecodeError as e:
                 response = {
                     "call_id": None,
                     "status": "error",
                     "error": f"Invalid JSON: {e}",
                 }
-                writer.write(orjson.dumps(response))
+                writer.write(json.dumps(response).encode())
                 await writer.drain()
                 writer.close()
                 await writer.wait_closed()
@@ -481,10 +485,13 @@ class SandboxPool:
                 }
 
             try:
-                response_bytes = orjson.dumps(response)
+                if _HAS_ORJSON:
+                    response_bytes = orjson.dumps(response)
+                else:
+                    response_bytes = json.dumps(response).encode()
             except Exception as serialize_err:
                 logger.error(
-                    f"[POOL_IPC] Failed to serialize response with orjson: {serialize_err}"
+                    f"[POOL_IPC] Failed to serialize response: {serialize_err}"
                 )
                 try:
                     response_bytes = json.dumps(response).encode()
@@ -500,14 +507,10 @@ class SandboxPool:
                         }
                     ).encode()
 
-            with open("/tmp/mcproxy_ipc_debug.log", "a") as _dbg:
-                _dbg.write(f"[IPC] Sending {len(response_bytes)} bytes\n")
             if response_bytes:
                 try:
                     writer.write(response_bytes)
                     await writer.drain()
-                    with open("/tmp/mcproxy_ipc_debug.log", "a") as _dbg:
-                        _dbg.write("[IPC] Response sent successfully\n")
                     logger.debug(f"[POOL_IPC] Response sent successfully")
                 except Exception as write_err:
                     logger.error(f"[POOL_IPC] Failed to write response: {write_err}")
@@ -516,17 +519,13 @@ class SandboxPool:
 
         except Exception as e:
             logger.error(f"[POOL_IPC] Connection error: {e}")
-            with open("/tmp/mcproxy_ipc_debug.log", "a") as _dbg:
-                import traceback
-
-                _dbg.write(f"[IPC] Connection error: {e}\n{traceback.format_exc()}\n")
             error_response = {
                 "call_id": None,
                 "status": "error",
                 "error": f"IPC connection error: {e}",
             }
             try:
-                writer.write(orjson.dumps(error_response))
+                writer.write(json.dumps(error_response).encode())
                 await writer.drain()
             except Exception:
                 logger.error("[POOL_IPC] Failed to send error response")
