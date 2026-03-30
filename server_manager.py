@@ -26,6 +26,8 @@ class ServerProcess:
         args: List[str],
         env: Dict[str, str],
         timeout: int = 60,
+        tool_timeout: Optional[int] = None,
+        tool_timeouts: Optional[Dict[str, int]] = None,
     ):
         """Initialize server process configuration.
 
@@ -35,12 +37,16 @@ class ServerProcess:
             args: Command arguments
             env: Environment variables
             timeout: Startup timeout in seconds (default: 60 for npx)
+            tool_timeout: Default tool call timeout in seconds (default: LONG_RUNNING_TOOL_TIMEOUT_SECS)
+            tool_timeouts: Per-tool timeout overrides {tool_name: timeout_seconds}
         """
         self.name = name
         self.command = command
         self.args = args
         self.env = env
         self.timeout = timeout
+        self.tool_timeout = tool_timeout  # Default tool timeout for this server
+        self.tool_timeouts = tool_timeouts or {}  # Per-tool overrides
         self.process: Optional[asyncio.subprocess.Process] = None
         self.tools: List[Dict[str, Any]] = []
         self._stdio_lock = asyncio.Lock()
@@ -49,7 +55,13 @@ class ServerProcess:
         self._max_restarts = 3
 
     def set_config(
-        self, command: str, args: List[str], env: Dict[str, str], timeout: int
+        self,
+        command: str,
+        args: List[str],
+        env: Dict[str, str],
+        timeout: int,
+        tool_timeout: Optional[int] = None,
+        tool_timeouts: Optional[Dict[str, int]] = None,
     ) -> None:
         """Store configuration for potential restart."""
         self._config = {
@@ -57,6 +69,8 @@ class ServerProcess:
             "args": args,
             "env": env,
             "timeout": timeout,
+            "tool_timeout": tool_timeout,
+            "tool_timeouts": tool_timeouts or {},
         }
 
     async def start(self) -> bool:
@@ -218,7 +232,13 @@ class ServerProcess:
             )
             await self._send_message(request)
 
-            timeout_seconds = LONG_RUNNING_TOOL_TIMEOUT_SECS
+            # Determine timeout: per-tool override > server default > global default
+            timeout_seconds = self.tool_timeouts.get(
+                tool_name,
+                self.tool_timeout
+                if self.tool_timeout is not None
+                else LONG_RUNNING_TOOL_TIMEOUT_SECS,
+            )
             logger.debug(
                 f"[CALL_TOOL_WAIT] Waiting for response from {self.name} (timeout={timeout_seconds}s)"
             )
@@ -426,6 +446,8 @@ class ServerManager:
                 args=server_config.get("args", []),
                 env=server_config.get("env", {}),
                 timeout=server_config.get("timeout", 60),  # Default 60s for npx
+                tool_timeout=server_config.get("tool_timeout"),  # Default tool timeout
+                tool_timeouts=server_config.get("tool_timeouts"),  # Per-tool overrides
             )
 
             # Store config for potential restart
@@ -434,6 +456,8 @@ class ServerManager:
                 args=server_config.get("args", []),
                 env=server_config.get("env", {}),
                 timeout=server_config.get("timeout", 60),
+                tool_timeout=server_config.get("tool_timeout"),
+                tool_timeouts=server_config.get("tool_timeouts"),
             )
 
             self.servers[server.name] = server

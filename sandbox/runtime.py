@@ -24,6 +24,48 @@ import socket
 import time
 
 
+def _sanitize_for_json(obj, path="root", seen=None):
+    '''Validate and sanitize objects for JSON serialization.
+    
+    Detects circular references and non-serializable types.
+    Returns (success: bool, sanitized_obj or error_message: str)
+    '''
+    if seen is None:
+        seen = set()
+    
+    obj_id = id(obj)
+    if obj_id in seen:
+        return False, f"Circular reference detected at {path}. Pass only primitive values (str, int, float, bool, list, dict) to MCP tools."
+    
+    if isinstance(obj, (str, int, float, bool)) or obj is None:
+        return True, obj
+    
+    if isinstance(obj, (list, tuple)):
+        seen.add(obj_id)
+        result = []
+        for i, item in enumerate(obj):
+            success, value = _sanitize_for_json(item, f"{path}[{i}]", seen)
+            if not success:
+                return False, value
+            result.append(value)
+        return True, result
+    
+    if isinstance(obj, dict):
+        seen.add(obj_id)
+        result = {}
+        for k, v in obj.items():
+            if not isinstance(k, str):
+                return False, f"Non-string dict key at {path}: {type(k).__name__}. All dict keys must be strings."
+            success, value = _sanitize_for_json(v, f"{path}.{k}", seen)
+            if not success:
+                return False, value
+            result[k] = value
+        return True, result
+    
+    # Non-serializable type
+    return False, f"Non-serializable type at {path}: {type(obj).__name__}. Pass only primitive values (str, int, float, bool, list, dict) to MCP tools."
+
+
 class _TraceCollector:
     '''Collects trace events for debugging and performance analysis.'''
     _instance = None
@@ -107,11 +149,17 @@ class _IPCClient:
     def _call_once(self, server, tool, args):
         call_start = time.perf_counter()
         self._call_id += 1
+        
+        # Sanitize args before serialization
+        success, sanitized = _sanitize_for_json(args)
+        if not success:
+            raise ValueError(sanitized)  # sanitized contains error message
+        
         request = {
             "call_id": self._call_id,
             "server": server,
             "tool": tool,
-            "args": args,
+            "args": sanitized,
         }
 
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
