@@ -10,34 +10,37 @@ Features:
 - Synchronous tool execution with immediate results
 """
 
+import ast
 import asyncio
 import ast
-import json
 import json
 import orjson
 import os
 import shutil
+import sys
 import tempfile
 import time
 import unicodedata
-from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
+
+import orjson
 
 from code_validator import validate_code_for_dangerous_patterns
 from logging_config import get_logger
-from sandbox.access_control import NamespaceAccessControl, AccessControlConfig
+from sandbox.access_control import AccessControlConfig, NamespaceAccessControl
 from sandbox.constants import (
     MAX_CODE_SIZE_BYTES,
+    get_blocked_attributes,
     get_blocked_functions,
     get_blocked_imports,
-    get_blocked_attributes,
 )
 from sandbox.runtime import RUNTIME_CLASSES
 from sandbox.security import BLOCKED_BUILTINS, BLOCKED_IMPORTS
 from sandbox.validation import validate_code
 
 if TYPE_CHECKING:
-    from sandbox.pool import SandboxPool
     from auth import AuthContext, ScopeResolver
+    from sandbox.pool import SandboxPool
 
 
 logger = get_logger(__name__)
@@ -83,6 +86,12 @@ class SandboxExecutor:
         self._max_concurrency = max_concurrency
         self._pool = pool
         self._scope_resolver = scope_resolver
+
+        venv_python = os.path.join(os.path.dirname(sys.executable), "python")
+        if os.path.isfile(venv_python) and os.access(venv_python, os.X_OK):
+            self._python_path = venv_python
+        else:
+            self._python_path = None
 
     def validate_code(self, code: str) -> tuple[bool, str]:
         """Validate code before execution.
@@ -579,13 +588,13 @@ _stdout_output = ""
 
 try:
     import re
-    
+
     # Capture stdout
     _old_stdout = sys.stdout
     sys.stdout = io.StringIO()
-    
+
     local_vars = {{"__builtins__": __builtins__, "api": api, "stash": stash, "parallel": parallel, "json": json, "re": re, "sys": sys, "get_blocked_functions": get_blocked_functions, "get_blocked_imports": get_blocked_imports, "get_blocked_attributes": get_blocked_attributes}}
-    
+
     # Try to extract and evaluate last expression for REPL behavior
     _last_expr_value = None
     try:
@@ -608,11 +617,11 @@ try:
     except (SyntaxError, ValueError):
         # Fallback to simple exec if AST parsing fails
         exec({repr(user_code)}, local_vars, local_vars)
-    
+
     # Restore stdout and capture output
     _stdout_output = sys.stdout.getvalue()
     sys.stdout = _old_stdout
-    
+
     # Determine result: last expression > result variable > run() function
     if _last_expr_value is not None:
         _result = _last_expr_value
@@ -626,10 +635,10 @@ except NameError as e:
     _stdout_output = sys.stdout.getvalue()
     sys.stdout = _old_stdout
     _error = traceback.format_exc()
-    
+
     # Check for common mistakes
     error_str = str(_error)
-    
+
     # Pattern: blocked builtin access
     blocked_names = ["eval", "exec", "compile", "open", "input", "__import__", "breakpoint", "hasattr", "getattr", "setattr", "delattr"]
     found_blocked = False
@@ -640,7 +649,7 @@ except NameError as e:
 Call get_blocked_functions() to see all blocked functions."""
             found_blocked = True
             break
-    
+
     if not found_blocked:
         # Pattern 1: server__tool() direct call
         match = re.search(r"name '([\\w]+__[\\w]+)' is not defined", error_str)
@@ -768,14 +777,16 @@ print(json.dumps(output))
                 code_file_path = code_file.name
 
             try:
-                cmd = [self._uv_path, "run"]
-
-                for dep in dependencies:
-                    cmd.extend(["--with", dep])
-
-                cmd.extend(["python", code_file_path])
-
-                logger.debug(f"Running uv subprocess: {' '.join(cmd[:5])}...")
+                venv_python = os.path.join(os.path.dirname(sys.executable), "python")
+                if os.path.isfile(venv_python) and os.access(venv_python, os.X_OK):
+                    cmd = [venv_python, code_file_path]
+                    logger.debug(f"Running venv subprocess: {venv_python}")
+                else:
+                    cmd = [self._uv_path, "run"]
+                    for dep in dependencies:
+                        cmd.extend(["--with", dep])
+                    cmd.extend(["python", code_file_path])
+                    logger.debug(f"Running uv subprocess: {' '.join(cmd[:5])}...")
 
                 process = await asyncio.create_subprocess_exec(
                     *cmd,

@@ -9,6 +9,7 @@ import json
 import orjson
 import os
 import shutil
+import sys
 import tempfile
 import time
 from typing import Any, Callable, Dict, List, Optional, Set
@@ -129,9 +130,9 @@ for line in sys.stdin:
 class WarmSandbox:
     """A single warm sandbox process."""
 
-    def __init__(self, sandbox_id: int, uv_path: str, ipc_sock_path: str):
+    def __init__(self, sandbox_id: int, python_path: str, ipc_sock_path: str):
         self.sandbox_id = sandbox_id
-        self.uv_path = uv_path
+        self.python_path = python_path
         self.ipc_sock_path = ipc_sock_path
         self.process: Optional[asyncio.subprocess.Process] = None
         self.in_use = False
@@ -149,12 +150,15 @@ class WarmSandbox:
                 "MCPROXY_IPC_SOCK": self.ipc_sock_path,
             }
 
+            code_file = tempfile.NamedTemporaryFile(
+                mode="w", suffix=".py", delete=False
+            )
+            code_file.write(code)
+            code_file.close()
+
             self.process = await asyncio.create_subprocess_exec(
-                self.uv_path,
-                "run",
-                "python",
-                "-c",
-                code,
+                self.python_path,
+                code_file.name,
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
@@ -304,6 +308,14 @@ class SandboxPool:
         self.max_pool_size = max_pool_size
         self.idle_timeout_secs = idle_timeout_secs
 
+        venv_python = os.path.join(os.path.dirname(sys.executable), "python")
+        if os.path.isfile(venv_python) and os.access(venv_python, os.X_OK):
+            self.python_path = venv_python
+            logger.info(f"[POOL] Using venv Python: {self.python_path}")
+        else:
+            self.python_path = uv_path
+            logger.info(f"[POOL] Using uv fallback: {self.python_path}")
+
         self._sandboxes: List[WarmSandbox] = []
         self._next_id = 0
         self._lock = asyncio.Lock()
@@ -316,6 +328,13 @@ class SandboxPool:
 
     async def start(self):
         """Start the pool with initial warm sandboxes."""
+        # Clean up stale IPC socket directories from previous runs
+        import glob
+        stale_dirs = glob.glob("mcproxy_pool_ipc_*")
+        for d:
+            stale_dir:
+                shutil.rmtree(stale_dir)
+
         self._ipc_temp_dir = tempfile.mkdtemp(prefix="mcproxy_pool_ipc_")
         self._ipc_sock_path = os.path.join(self._ipc_temp_dir, "ipc.sock")
 
@@ -376,7 +395,7 @@ class SandboxPool:
     async def _create_sandbox(self) -> Optional[WarmSandbox]:
         """Create and start a new sandbox."""
         self._next_id += 1
-        sandbox = WarmSandbox(self._next_id, self.uv_path, self._ipc_sock_path)
+        sandbox = WarmSandbox(self._next_id, self.python_path, self._ipc_sock_path)
 
         if await sandbox.start():
             return sandbox
