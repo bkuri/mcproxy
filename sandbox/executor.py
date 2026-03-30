@@ -843,6 +843,7 @@ print(json.dumps(output))
         try:
             data = await reader.read(65536)
             if not data:
+                logger.debug("[IPC] Empty data received, client disconnected")
                 return
 
             try:
@@ -942,11 +943,37 @@ print(json.dumps(output))
                     "duration_ms": call_ms,
                 }
 
-            writer.write(orjson.dumps(response))
+            try:
+                response_bytes = orjson.dumps(response)
+            except Exception as serialize_err:
+                logger.error(f"[IPC] Failed to serialize response: {serialize_err}")
+                response_bytes = orjson.dumps(
+                    {
+                        "call_id": call_id,
+                        "status": "error",
+                        "error": f"Response serialization failed: {serialize_err}",
+                    }
+                )
+            writer.write(response_bytes)
             await writer.drain()
 
         except Exception as e:
             logger.error(f"[IPC] Connection error: {e}")
+            try:
+                error_response = {
+                    "call_id": None,
+                    "status": "error",
+                    "error": f"IPC connection error: {e}",
+                }
+                try:
+                    writer.write(orjson.dumps(error_response))
+                except Exception:
+                    writer.write(
+                        orjson.dumps({"status": "error", "error": "Internal error"})
+                    )
+                await writer.drain()
+            except Exception:
+                pass
         finally:
             writer.close()
             await writer.wait_closed()

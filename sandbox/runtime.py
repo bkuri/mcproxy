@@ -165,6 +165,7 @@ class _IPCClient:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         try:
             sock.connect(self._sock_path)
+            sock.settimeout(30.0)
             sock.sendall(orjson.dumps(request))
             sock.shutdown(socket.SHUT_WR)
 
@@ -174,6 +175,12 @@ class _IPCClient:
                 if not chunk:
                     break
                 response_data += chunk
+
+            if not response_data:
+                raise RuntimeError(
+                    f"IPC server returned empty response (socket: {self._sock_path}). "
+                    f"The sandbox IPC server may have crashed or failed to serialize the response."
+                )
 
             response = orjson.loads(response_data)
             duration_ms = int((time.perf_counter() - call_start) * 1000)
