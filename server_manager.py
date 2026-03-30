@@ -53,6 +53,7 @@ class ServerProcess:
         self._config = None  # Store config for restart
         self._restart_count = 0
         self._max_restarts = 3
+        self._stderr_task: Optional[asyncio.Task] = None
 
     def set_config(
         self,
@@ -91,7 +92,10 @@ class ServerProcess:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 env=self.env,
+                limit=1024 * 1024,
             )
+
+            self._stderr_task = asyncio.create_task(self._drain_stderr())
 
             # Use lock for initialization sequence
             async with self._stdio_lock:
@@ -147,6 +151,14 @@ class ServerProcess:
 
     async def stop(self) -> None:
         """Stop the server process gracefully."""
+        if self._stderr_task is not None:
+            self._stderr_task.cancel()
+            try:
+                await self._stderr_task
+            except asyncio.CancelledError:
+                pass
+            self._stderr_task = None
+
         if self.process is None:
             return
 
@@ -311,6 +323,31 @@ class ServerProcess:
         self.process.stdin.write(data.encode())
         await self.process.stdin.drain()
 
+    async def _drain_stderr(self) -> None:
+        """Drain stderr to prevent pipe buffer deadlock.
+
+        Subprocesses that write to stderr without a reader will block
+        when the OS pipe buffer (~65KB) fills up, which prevents them
+        from writing their JSON-RPC response to stdout.
+        """
+        if self.process is None or self.process.stderr is None:
+            return
+
+        try:
+            while True:
+                line = await self.process.stderr.readline()
+                if not line:
+                    break
+                line_str = line.decode("utf-8", errors="replace").strip()
+                if line_str:
+                    logger.debug(
+                        f"[{self.name} stderr] {line_str[:200]}"
+                    )
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.debug(f"[{self.name} stderr drain ended: {e}]")
+
     async def _read_message(self) -> Optional[Dict[str, Any]]:
         """Read a JSON-RPC message from the server with robust error handling.
 
@@ -344,6 +381,9 @@ class ServerProcess:
 
                 if not line:
                     # EOF reached
+                    logger.warning(
+                        f"[{self.name}] EOF on stdout after {line_count} lines, buffer={bool(buffer)}"
+                    )
                     if buffer:
                         break
                     return None

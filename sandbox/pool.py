@@ -159,6 +159,7 @@ class WarmSandbox:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 env=env,
+                limit=1024 * 1024,
             )
 
             # Wait for ready signal
