@@ -959,21 +959,19 @@ print(json.dumps(output))
 
         except Exception as e:
             logger.error(f"[IPC] Connection error: {e}")
+            error_response = {
+                "call_id": None,
+                "status": "error",
+                "error": f"IPC connection error: {e}",
+            }
             try:
-                error_response = {
-                    "call_id": None,
-                    "status": "error",
-                    "error": f"IPC connection error: {e}",
-                }
-                try:
-                    writer.write(orjson.dumps(error_response))
-                except Exception:
-                    writer.write(
-                        orjson.dumps({"status": "error", "error": "Internal error"})
-                    )
+                writer.write(orjson.dumps(error_response))
                 await writer.drain()
             except Exception:
-                pass
+                logger.error("[IPC] Failed to send error response")
         finally:
-            writer.close()
-            await writer.wait_closed()
+            try:
+                writer.close()
+                await writer.wait_closed()
+            except Exception:
+                pass
