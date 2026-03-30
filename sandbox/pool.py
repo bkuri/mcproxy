@@ -330,10 +330,12 @@ class SandboxPool:
         """Start the pool with initial warm sandboxes."""
         # Clean up stale IPC socket directories from previous runs
         import glob
-        stale_dirs = glob.glob("mcproxy_pool_ipc_*")
-        for d:
-            stale_dir:
+
+        for stale_dir in glob.glob("/tmp/mcproxy_pool_ipc_*"):
+            try:
                 shutil.rmtree(stale_dir)
+            except OSError:
+                pass
 
         self._ipc_temp_dir = tempfile.mkdtemp(prefix="mcproxy_pool_ipc_")
         self._ipc_sock_path = os.path.join(self._ipc_temp_dir, "ipc.sock")
