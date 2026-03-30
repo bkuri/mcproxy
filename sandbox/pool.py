@@ -417,9 +417,8 @@ class SandboxPool:
         """
         try:
             data = await reader.read(65536)
-            print(
-                f"[POOL_IPC_DEBUG] Received {len(data)} bytes: {data[:200]}", flush=True
-            )
+            with open("/tmp/mcproxy_ipc_debug.log", "a") as _dbg:
+                _dbg.write(f"[IPC] Received {len(data)} bytes: {data[:200]!r}\n")
             if not data:
                 logger.debug("[POOL_IPC] Empty data received, client disconnected")
                 return
@@ -501,15 +500,14 @@ class SandboxPool:
                         }
                     ).encode()
 
-            print(
-                f"[POOL_IPC_DEBUG] Sending {len(response_bytes)} bytes response",
-                flush=True,
-            )
+            with open("/tmp/mcproxy_ipc_debug.log", "a") as _dbg:
+                _dbg.write(f"[IPC] Sending {len(response_bytes)} bytes\n")
             if response_bytes:
                 try:
                     writer.write(response_bytes)
                     await writer.drain()
-                    print(f"[POOL_IPC_DEBUG] Response sent successfully", flush=True)
+                    with open("/tmp/mcproxy_ipc_debug.log", "a") as _dbg:
+                        _dbg.write("[IPC] Response sent successfully\n")
                     logger.debug(f"[POOL_IPC] Response sent successfully")
                 except Exception as write_err:
                     logger.error(f"[POOL_IPC] Failed to write response: {write_err}")
@@ -518,6 +516,10 @@ class SandboxPool:
 
         except Exception as e:
             logger.error(f"[POOL_IPC] Connection error: {e}")
+            with open("/tmp/mcproxy_ipc_debug.log", "a") as _dbg:
+                import traceback
+
+                _dbg.write(f"[IPC] Connection error: {e}\n{traceback.format_exc()}\n")
             error_response = {
                 "call_id": None,
                 "status": "error",
