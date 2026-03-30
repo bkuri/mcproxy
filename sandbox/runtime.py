@@ -19,7 +19,6 @@ Tool Inspection:
 
 RUNTIME_CLASSES = """
 import json
-import orjson
 import os
 import socket
 import time
@@ -167,7 +166,7 @@ class _IPCClient:
         try:
             sock.connect(self._sock_path)
             sock.settimeout(30.0)
-            sock.sendall(orjson.dumps(request))
+            sock.sendall(json.dumps(request).encode())
             sock.shutdown(socket.SHUT_WR)
 
             response_data = b""
@@ -183,7 +182,7 @@ class _IPCClient:
                     f"The sandbox IPC server may have crashed or failed to serialize the response."
                 )
 
-            response = orjson.loads(response_data)
+            response = json.loads(response_data)
             duration_ms = int((time.perf_counter() - call_start) * 1000)
 
             if response.get("status") == "error":
@@ -201,10 +200,10 @@ class _IPCClient:
                     if isinstance(first_item, dict) and first_item.get("type") == "text":
                         text = first_item.get("text", "")
                         try:
-                            unwrapped = orjson.loads(text)
+                            unwrapped = json.loads(text)
                             _TraceCollector.get().record_call(server, tool, args, duration_ms)
                             return unwrapped
-                        except (orjson.JSONDecodeError, json.JSONDecodeError, TypeError):
+                        except (json.JSONDecodeError, TypeError):
                             _TraceCollector.get().record_call(server, tool, args, duration_ms)
                             return text
             
