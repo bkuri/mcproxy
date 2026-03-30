@@ -417,6 +417,9 @@ class SandboxPool:
         """
         try:
             data = await reader.read(65536)
+            print(
+                f"[POOL_IPC_DEBUG] Received {len(data)} bytes: {data[:200]}", flush=True
+            )
             if not data:
                 logger.debug("[POOL_IPC] Empty data received, client disconnected")
                 return
@@ -498,10 +501,15 @@ class SandboxPool:
                         }
                     ).encode()
 
+            print(
+                f"[POOL_IPC_DEBUG] Sending {len(response_bytes)} bytes response",
+                flush=True,
+            )
             if response_bytes:
                 try:
                     writer.write(response_bytes)
                     await writer.drain()
+                    print(f"[POOL_IPC_DEBUG] Response sent successfully", flush=True)
                     logger.debug(f"[POOL_IPC] Response sent successfully")
                 except Exception as write_err:
                     logger.error(f"[POOL_IPC] Failed to write response: {write_err}")
