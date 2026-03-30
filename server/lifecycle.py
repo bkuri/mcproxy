@@ -115,7 +115,7 @@ async def init_sandbox_pool(
 
     sandbox_pool = SandboxPool(
         tool_executor=tool_executor,
-        uv_path=sandbox_config.get("uv_path", "uv"),
+        python_path=sandbox_config.get("python_path", uv_path),
         pool_size=pool_config.get("size", 3),
         max_pool_size=pool_config.get("max_size", 10),
         idle_timeout_secs=pool_config.get("idle_timeout_secs", 300.0),
