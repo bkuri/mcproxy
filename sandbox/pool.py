@@ -470,8 +470,16 @@ class SandboxPool:
                         "error": f"Response serialization failed: {serialize_err}",
                     }
                 )
-            writer.write(response_bytes)
-            await writer.drain()
+
+            if response_bytes:
+                try:
+                    writer.write(response_bytes)
+                    await writer.drain()
+                    logger.debug(f"[POOL_IPC] Response sent successfully")
+                except Exception as write_err:
+                    logger.error(f"[POOL_IPC] Failed to write response: {write_err}")
+            else:
+                logger.error("[POOL_IPC] response_bytes is empty, cannot send")
 
         except Exception as e:
             logger.error(f"[POOL_IPC] Connection error: {e}")
