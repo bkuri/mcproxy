@@ -7,7 +7,7 @@ Includes security hardening: blocklist, shell removal, capability dropping.
 
 from typing import Any, Callable, Dict, List, Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from manifest import CapabilityRegistry, EventHookManager
@@ -54,7 +54,7 @@ register_sse_endpoints(
 
 
 @app.post("/message")
-async def handle_message(request: Any) -> Dict[str, Any]:
+async def handle_message(request: Request) -> Dict[str, Any]:
     """Handle MCP messages at /message endpoint."""
     return await _handle_message(request)
 

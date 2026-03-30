@@ -234,6 +234,14 @@ def create_message_handler(
         tool_executor = tool_executor_getter()
 
         try:
+            if not hasattr(request, "json"):
+                return {
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32600,
+                        "message": "Invalid request: expected FastAPI Request object",
+                    },
+                }
             body = await request.json()
             method = body.get("method")
             msg_id = body.get("id")
