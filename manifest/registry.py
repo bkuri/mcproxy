@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
 from logging_config import get_logger
-
+from utils.namespace import normalize_namespace_config
 from .errors import NamespaceInheritanceError
 
 logger = get_logger(__name__)
@@ -216,11 +216,8 @@ class CapabilityRegistry:
         Returns:
             List of extended namespace names
         """
-        if isinstance(ns_def, list):
-            return []
-        elif isinstance(ns_def, dict):
-            return ns_def.get("extends", [])
-        return []
+        normalized = normalize_namespace_config(ns_def)
+        return normalized["extends"]
 
     def _get_servers_from_ns(self, ns_def: Any) -> List[str]:
         """Get servers list from namespace definition.
@@ -231,11 +228,8 @@ class CapabilityRegistry:
         Returns:
             List of server names
         """
-        if isinstance(ns_def, list):
-            return ns_def
-        elif isinstance(ns_def, dict):
-            return ns_def.get("servers", [])
-        return []
+        normalized = normalize_namespace_config(ns_def)
+        return normalized["servers"]
 
     def resolve_namespace(self, namespace: str) -> List[str]:
         """Resolve namespace inheritance to get all accessible servers.

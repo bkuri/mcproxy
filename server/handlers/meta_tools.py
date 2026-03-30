@@ -1,60 +1,19 @@
-"""MCP protocol handlers and meta-tool handlers for MCProxy."""
+"""Meta-tool definitions and handlers for MCProxy."""
 
-import asyncio
 import json
-import re
-from typing import Any, Callable, Dict, Optional, Tuple
-
-from fastapi import Request
+from typing import Any, Callable, Dict, List, Optional
 
 from manifest import CapabilityRegistry, ManifestQuery
-from manifest.typescript_gen import generate_compact_instructions
-from sandbox import SandboxExecutor, AccessControlConfig
 from logging_config import get_logger
-from session_stash import SessionManager, SessionStash
-
-from .sse import (
-    get_namespace_from_request,
-    get_session_id_from_request,
-    validate_namespace,
-)
 
 logger = get_logger(__name__)
 
 
-def parse_inspect_code(code: str) -> Tuple[Optional[str], Optional[str]]:
-    """Parse code expression to extract server and tool names for inspect.
+# ============================================================================
+# META_TOOLS Definition
+# ============================================================================
 
-    Supports patterns:
-    - api.server("name") -> returns (name, None)
-    - api.server("name").tool -> returns (name, tool)
-    - api.server('name') -> single quotes also work
-
-    Args:
-        code: Code expression like 'api.server("wikipedia").search'
-
-    Returns:
-        Tuple of (server_name, tool_name) where tool_name may be None
-    """
-    if not code:
-        return None, None
-
-    code = code.strip()
-
-    # Pattern: api.server("server_name") or api.server("server_name").tool_name
-    # Also supports single quotes
-    pattern = r"api\.server\(['\"]([\w\-]+)['\"]\)(?:\.(\w+))?"
-    match = re.match(pattern, code)
-
-    if match:
-        server_name = match.group(1)
-        tool_name = match.group(2)  # May be None
-        return server_name, tool_name
-
-    return None, None
-
-
-META_TOOLS = [
+META_TOOLS: List[Dict[str, Any]] = [
     {
         "name": "mcproxy",
         "description": "Unified tool: execute (run code), search (find tools), inspect (get schemas), help (get docs). "
@@ -118,96 +77,18 @@ META_TOOLS = [
 ]
 
 
-# Global config storage for MCP client config and mcproxy.json config
-_mcp_config: dict = {}
-_mcproxy_config: dict = {}
+# ============================================================================
+# Helper Functions
+# ============================================================================
 
 
-def set_mcproxy_config(config: dict) -> None:
-    """Set the mcproxy.json configuration.
-
-    Args:
-        config: Configuration dictionary from mcproxy.json
-    """
-    global _mcproxy_config
-    _mcproxy_config = config
+# Import parse_inspect_code from the parsing module
+from .parsing import parse_inspect_code
 
 
-def get_mcproxy_config() -> dict:
-    """Get the mcproxy.json configuration.
-
-    Returns:
-        Configuration dictionary from mcproxy.json
-    """
-    return _mcproxy_config
-
-
-async def handle_initialize(
-    msg_id: Any,
-    params: Dict[str, Any],
-    namespace: Optional[str] = None,
-    capability_registry: Optional[CapabilityRegistry] = None,
-) -> Dict[str, Any]:
-    """Handle MCP initialize request.
-
-    Args:
-        msg_id: JSON-RPC message ID
-        params: Initialize parameters (may contain 'config' from MCP client)
-        namespace: Optional namespace context from X-Namespace header
-        capability_registry: Capability registry instance
-
-    Returns:
-        MCP initialize response
-    """
-    # Store client config if provided
-    global _mcp_config
-    if isinstance(params, dict) and params.get("config"):
-        _mcp_config = params.get("config", {})
-
-    result = {
-        "protocolVersion": "2024-11-05",
-        "capabilities": {"tools": {}},
-        "serverInfo": {"name": "mcproxy", "version": "4.2.0"},
-    }
-
-    # Generate TypeScript-style instructions from manifest
-    if capability_registry and capability_registry._manifest:
-        logger.debug(
-            f"Manifest has {len(capability_registry._manifest.get('tools_by_server', {}))} servers with tools"
-        )
-        # Merge configs: mcproxy.json takes precedence over MCP client config
-        merged_config = {**_mcp_config, **_mcproxy_config}
-        instructions = generate_compact_instructions(
-            capability_registry._manifest, config=merged_config
-        )
-        result["instructions"] = instructions
-    else:
-        logger.warning("No capability registry or manifest available during initialize")
-
-    if namespace and capability_registry is not None:
-        result["namespace"] = namespace
-        servers, _ = capability_registry.resolve_namespace_to_servers(namespace)
-        result["namespaceInfo"] = {
-            "name": namespace,
-            "servers": servers,
-        }
-
-    return {"jsonrpc": "2.0", "id": msg_id, "result": result}
-
-
-async def handle_tools_list(
-    msg_id: Any, namespace: Optional[str] = None
-) -> Dict[str, Any]:
-    """Handle tools/list request - return meta-tools only (v2.0).
-
-    Args:
-        msg_id: JSON-RPC message ID
-        namespace: Optional namespace context for filtering
-
-    Returns:
-        MCP response with meta-tools list
-    """
-    return {"jsonrpc": "2.0", "id": msg_id, "result": {"tools": META_TOOLS}}
+# ============================================================================
+# Meta Tool Handlers
+# ============================================================================
 
 
 async def handle_tools_call(
@@ -216,9 +97,11 @@ async def handle_tools_call(
     namespace: Optional[str] = None,
     session_id: Optional[str] = None,
     capability_registry: Optional[CapabilityRegistry] = None,
-    sandbox_executor: Optional[SandboxExecutor] = None,
-    session_manager: Optional[SessionManager] = None,
+    sandbox_executor: Optional[Any] = None,
+    session_manager: Optional[Any] = None,
     tool_executor: Optional[Callable] = None,
+    mcproxy_config: Optional[Dict[str, Any]] = None,
+    mcp_config: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Handle tools/call request - route to appropriate action handler.
 
@@ -231,6 +114,8 @@ async def handle_tools_call(
         sandbox_executor: Sandbox executor instance
         session_manager: Session manager instance
         tool_executor: Callable to execute tools
+        mcproxy_config: mcproxy.json configuration
+        mcp_config: MCP client configuration
 
     Returns:
         MCP response with tool result or error
@@ -283,7 +168,7 @@ async def handle_tools_call(
 
         elif action == "search":
             # Get config for search (merge mcproxy.json + MCP client config)
-            merged_config = {**_mcproxy_config, **_mcp_config}
+            merged_config = {**(mcp_config or {}), **(mcproxy_config or {})}
             search_config = merged_config.get("search", {})
             min_words = search_config.get("min_words", 2)
             max_tools = search_config.get("max_tools", 5)
@@ -571,8 +456,8 @@ async def handle_execute(
     params: Dict,
     connection_namespace: Optional[str] = None,
     session_id: Optional[str] = None,
-    sandbox_executor: Optional[SandboxExecutor] = None,
-    session_manager: Optional[SessionManager] = None,
+    sandbox_executor: Optional[Any] = None,
+    session_manager: Optional[Any] = None,
     tool_executor: Optional[Callable] = None,
 ) -> Dict[str, Any]:
     """Handle execute meta-tool.
@@ -629,7 +514,7 @@ async def handle_execute(
                 },
             }
 
-        session: Optional[SessionStash] = None
+        session = None
         if session_manager is not None:
             session = await session_manager.get_or_create(session_id)
 
@@ -669,8 +554,8 @@ async def handle_trace(
     params: Dict,
     connection_namespace: Optional[str] = None,
     session_id: Optional[str] = None,
-    sandbox_executor: Optional[SandboxExecutor] = None,
-    session_manager: Optional[SessionManager] = None,
+    sandbox_executor: Optional[Any] = None,
+    session_manager: Optional[Any] = None,
     tool_executor: Optional[Callable] = None,
 ) -> Dict[str, Any]:
     """Handle trace action - execute code with full call stack tracing.
@@ -773,7 +658,7 @@ async def handle_trace(
                 "error": {"code": -32602, "message": f"Validation error: {error}"},
             }
 
-        session: Optional[SessionStash] = None
+        session = None
         if session_manager is not None:
             session = await session_manager.get_or_create(session_id)
             add_event("session_created", {"session_id": session_id})
@@ -947,103 +832,3 @@ async def handle_inspect(
             "id": msg_id,
             "error": {"code": -32000, "message": f"Inspect failed: {e}"},
         }
-
-
-def create_message_handler(
-    capability_registry_getter: Callable[[], Optional[CapabilityRegistry]],
-    sandbox_executor_getter: Callable[[], Optional[SandboxExecutor]],
-    session_manager_getter: Callable[[], Optional[SessionManager]],
-    tool_executor_getter: Callable[[], Optional[Callable]],
-) -> Callable:
-    """Create a message handler with dependency injection.
-
-    Args:
-        capability_registry_getter: Callable that returns capability registry
-        sandbox_executor_getter: Callable that returns sandbox executor
-        session_manager_getter: Callable that returns session manager
-        tool_executor_getter: Callable that returns tool executor
-
-    Returns:
-        Async message handler function
-    """
-
-    async def handle_message(
-        request: Request, path_namespace: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """Handle MCP messages from clients.
-
-        Processes initialize, tools/list, and tools/call requests.
-        v2.0 only supports search and execute meta-tools.
-        Supports X-Namespace header for namespace context.
-        Supports X-Session-ID header for session context.
-
-        Args:
-            request: FastAPI request object
-            path_namespace: Namespace from URL path (takes precedence over header)
-        """
-        capability_registry = capability_registry_getter()
-        sandbox_executor = sandbox_executor_getter()
-        session_manager = session_manager_getter()
-        tool_executor = tool_executor_getter()
-
-        try:
-            body = await request.json()
-            method = body.get("method")
-            msg_id = body.get("id")
-            params = body.get("params", {})
-
-            header_ns = path_namespace or get_namespace_from_request(request)
-            if header_ns and not validate_namespace(header_ns, capability_registry):
-                logger.warning(f"[MESSAGE] Invalid X-Namespace header: {header_ns}")
-                return {
-                    "jsonrpc": "2.0",
-                    "id": msg_id,
-                    "error": {
-                        "code": -32602,
-                        "message": f"Invalid namespace: {header_ns}",
-                    },
-                }
-
-            session_id = get_session_id_from_request(request)
-
-            ns_context = f" namespace={header_ns}" if header_ns else ""
-            sess_context = f" session={session_id}" if session_id else ""
-            logger.debug(f"[MESSAGE] method={method}{ns_context}{sess_context}")
-
-            if method == "initialize":
-                return await handle_initialize(
-                    msg_id,
-                    params,
-                    namespace=header_ns,
-                    capability_registry=capability_registry,
-                )
-            elif method == "tools/list":
-                return await handle_tools_list(msg_id, namespace=header_ns)
-            elif method == "tools/call":
-                return await handle_tools_call(
-                    msg_id,
-                    params,
-                    namespace=header_ns,
-                    session_id=session_id,
-                    capability_registry=capability_registry,
-                    sandbox_executor=sandbox_executor,
-                    session_manager=session_manager,
-                    tool_executor=tool_executor,
-                )
-            else:
-                return {
-                    "jsonrpc": "2.0",
-                    "id": msg_id,
-                    "error": {"code": -32601, "message": f"Method not found: {method}"},
-                }
-
-        except json.JSONDecodeError:
-            return {
-                "jsonrpc": "2.0",
-                "error": {"code": -32700, "message": "Parse error"},
-            }
-        except Exception as e:
-            logger.error(f"Error handling message: {e}")
-            return {"jsonrpc": "2.0", "error": {"code": -32000, "message": str(e)}}
-
-    return handle_message

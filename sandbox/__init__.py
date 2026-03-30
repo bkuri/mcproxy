@@ -4,6 +4,11 @@ Provides secure code execution via uv subprocess with namespace-based access con
 """
 
 from sandbox.access_control import NamespaceAccessControl, AccessControlConfig
+from sandbox.constants import (
+    get_blocked_attributes,
+    get_blocked_functions,
+    get_blocked_imports,
+)
 from sandbox.executor import SandboxExecutor
 from sandbox.proxy import DynamicProxy, ProxyAPI
 from sandbox.security import (
@@ -27,4 +32,7 @@ __all__ = [
     "MAX_CODE_SIZE_BYTES",
     "FUZZY_MATCH_THRESHOLD",
     "MAX_SUGGESTIONS",
+    "get_blocked_functions",
+    "get_blocked_imports",
+    "get_blocked_attributes",
 ]

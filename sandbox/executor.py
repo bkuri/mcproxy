@@ -24,95 +24,20 @@ from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
 from code_validator import validate_code_for_dangerous_patterns
 from logging_config import get_logger
 from sandbox.access_control import NamespaceAccessControl, AccessControlConfig
+from sandbox.constants import (
+    MAX_CODE_SIZE_BYTES,
+    get_blocked_functions,
+    get_blocked_imports,
+    get_blocked_attributes,
+)
 from sandbox.runtime import RUNTIME_CLASSES
+from sandbox.security import BLOCKED_BUILTINS, BLOCKED_IMPORTS
+from sandbox.validation import validate_code
 
 if TYPE_CHECKING:
     from sandbox.pool import SandboxPool
     from auth import AuthContext, ScopeResolver
-from sandbox.security import (
-    BLOCKED_BUILTINS,
-    BLOCKED_IMPORTS,
-    MAX_CODE_SIZE_BYTES,
-)
 
-
-def get_blocked_functions() -> list[str]:
-    """Return list of functions blocked in sandbox for security.
-
-    Returns:
-        List of blocked function names with descriptions
-    """
-    return [
-        "eval()",
-        "exec()",
-        "compile()",
-        "open() (file operations)",
-        "input()",
-        "__import__()",
-        "breakpoint()",
-        "hasattr()",
-        "getattr()",
-        "setattr()",
-        "delattr()",
-        "os.system()",
-        "os.popen()",
-        "subprocess.* (all subprocess calls)",
-        "pickle.loads() / pickle.load()",
-        "marshal.loads() / marshal.load()",
-        "importlib.import_module()",
-    ]
-
-
-def get_blocked_imports() -> list[str]:
-    """Return list of modules blocked from import.
-
-    Returns:
-        List of blocked module names
-    """
-    return [
-        "os",
-        "sys",
-        "subprocess",
-        "socket",
-        "http",
-        "urllib",
-        "requests",
-        "shutil",
-        "tempfile",
-        "multiprocessing",
-        "pickle",
-        "marshal",
-        "importlib",
-        "builtins",
-    ]
-
-
-def get_blocked_attributes() -> list[str]:
-    """Return list of blocked dunder attributes.
-
-    Returns:
-        List of blocked attribute names
-    """
-    return [
-        "__class__",
-        "__bases__",
-        "__subclasses__",
-        "__globals__",
-        "__locals__",
-        "__code__",
-        "__builtins__",
-        "__dict__",
-        "__mro__",
-        "__init__",
-        "__new__",
-        "__reduce__",
-        "__getstate__",
-        "__setstate__",
-    ]
-
-
-if TYPE_CHECKING:
-    pass
 
 logger = get_logger(__name__)
 
@@ -331,7 +256,7 @@ class SandboxExecutor:
         """
         timeout = timeout_secs or self._default_timeout_secs
 
-        is_valid, error = self.validate_code(code)
+        is_valid, error = validate_code(code)
         if not is_valid:
             return {
                 "status": "error",

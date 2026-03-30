@@ -12,6 +12,8 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from logging_config import get_logger
 
+from utils.namespace import normalize_namespace_config
+
 logger = get_logger(__name__)
 
 
@@ -230,11 +232,14 @@ def validate_namespaces(
                 raise ConfigError(f"Namespace '{ns_name}' cannot be null")
             continue
 
+        normalized = normalize_namespace_config(ns_config)
+
+        # Validate servers
         if isinstance(ns_config, list):
-            validate_namespace_servers(ns_name, ns_config, server_names)
+            validate_namespace_servers(ns_name, normalized["servers"], server_names)
         elif isinstance(ns_config, dict):
             if "servers" in ns_config:
-                validate_namespace_servers(ns_name, ns_config["servers"], server_names)
+                validate_namespace_servers(ns_name, normalized["servers"], server_names)
             else:
                 if raise_on_error:
                     raise ConfigError(
@@ -249,7 +254,7 @@ def validate_namespaces(
                 elif ns_config.get("isolated"):
                     warnings.append(f"Namespace '{ns_name}' is marked as isolated")
             if "extends" in ns_config:
-                validate_namespace_extends(ns_name, ns_config["extends"], namespaces)
+                validate_namespace_extends(ns_name, normalized["extends"], namespaces)
         else:
             if raise_on_error:
                 raise ConfigError(f"Namespace '{ns_name}' must be an array or object")

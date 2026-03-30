@@ -11,6 +11,8 @@ from typing import Any, Dict, List, Optional, Set
 
 from logging_config import get_logger
 
+from utils.namespace import get_namespace_servers
+
 logger = get_logger(__name__)
 
 TYPE_MAPPING: Dict[str, str] = {
@@ -535,10 +537,4 @@ class StubGenerator:
         Returns:
             List of server names in the namespace
         """
-        if isinstance(ns_config, list):
-            return ns_config
-        elif isinstance(ns_config, dict):
-            servers = ns_config.get("servers", [])
-            if isinstance(servers, list):
-                return servers
-        return []
+        return get_namespace_servers(ns_config)
