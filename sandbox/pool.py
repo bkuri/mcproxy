@@ -6,6 +6,7 @@ pre-warmed Python processes ready to execute code.
 
 import asyncio
 import json
+import json
 import orjson
 import os
 import shutil
@@ -402,7 +403,7 @@ class SandboxPool:
 
             try:
                 request = orjson.loads(data)
-            except orjson.JSONDecodeError as e:
+            except (orjson.JSONDecodeError, json.JSONDecodeError) as e:
                 response = {
                     "call_id": None,
                     "status": "error",

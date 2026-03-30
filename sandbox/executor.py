@@ -13,6 +13,7 @@ Features:
 import asyncio
 import ast
 import json
+import json
 import orjson
 import os
 import shutil
@@ -848,7 +849,7 @@ print(json.dumps(output))
 
             try:
                 request = orjson.loads(data)
-            except orjson.JSONDecodeError as e:
+            except (orjson.JSONDecodeError, json.JSONDecodeError) as e:
                 response = {
                     "call_id": None,
                     "status": "error",
