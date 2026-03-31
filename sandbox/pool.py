@@ -138,10 +138,11 @@ for line in sys.stdin:
 class WarmSandbox:
     """A single warm sandbox process."""
 
-    def __init__(self, sandbox_id: int, python_path: str, ipc_sock_path: str):
+    def __init__(self, sandbox_id: int, python_path: str, ipc_sock_path: str, ipc_timeout_secs: float = 60.0):
         self.sandbox_id = sandbox_id
         self.python_path = python_path
         self.ipc_sock_path = ipc_sock_path
+        self.ipc_timeout_secs = ipc_timeout_secs
         self.process: Optional[asyncio.subprocess.Process] = None
         self.in_use = False
         self.last_used: float = 0
@@ -156,6 +157,7 @@ class WarmSandbox:
                 "PYTHONIOENCODING": "utf-8",
                 "PYTHONUNBUFFERED": "1",
                 "MCPROXY_IPC_SOCK": self.ipc_sock_path,
+                "MCPROXY_IPC_TIMEOUT": str(self.ipc_timeout_secs),
             }
 
             code_file = tempfile.NamedTemporaryFile(
@@ -309,12 +311,14 @@ class SandboxPool:
         pool_size: int = 3,
         max_pool_size: int = 10,
         idle_timeout_secs: float = 300.0,
+        ipc_timeout_secs: float = 60.0,
     ):
         self._tool_executor = tool_executor
         self.uv_path = uv_path
         self.pool_size = pool_size
         self.max_pool_size = max_pool_size
         self.idle_timeout_secs = idle_timeout_secs
+        self.ipc_timeout_secs = ipc_timeout_secs
 
         venv_python = os.path.join(os.path.dirname(sys.executable), "python")
         if os.path.isfile(venv_python) and os.access(venv_python, os.X_OK):
@@ -405,7 +409,7 @@ class SandboxPool:
     async def _create_sandbox(self) -> Optional[WarmSandbox]:
         """Create and start a new sandbox."""
         self._next_id += 1
-        sandbox = WarmSandbox(self._next_id, self.python_path, self._ipc_sock_path)
+        sandbox = WarmSandbox(self._next_id, self.python_path, self._ipc_sock_path, self.ipc_timeout_secs)
 
         if await sandbox.start():
             return sandbox
@@ -545,7 +549,7 @@ class SandboxPool:
         namespace: str,
         retries: int = 0,
         max_concurrency: int = 5,
-        timeout: float = 30.0,
+        timeout: float = 60.0,
     ) -> Dict[str, Any]:
         """Execute code using a sandbox from the pool."""
         async with self._semaphore:

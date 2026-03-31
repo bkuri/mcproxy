@@ -115,6 +115,7 @@ class _IPCClient:
         self._sock_path = os.environ.get("MCPROXY_IPC_SOCK")
         self._call_id = 0
         self._retries = retries
+        self._timeout = float(os.environ.get("MCPROXY_IPC_TIMEOUT", "30.0"))
 
     def call(self, server, tool, args):
         if not self._sock_path:
@@ -165,7 +166,7 @@ class _IPCClient:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         try:
             sock.connect(self._sock_path)
-            sock.settimeout(30.0)
+            sock.settimeout(self._timeout)
             sock.sendall(json.dumps(request).encode())
             sock.shutdown(socket.SHUT_WR)
 

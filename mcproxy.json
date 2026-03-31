@@ -343,7 +343,7 @@
     "max_tools": 5
   },
   "sandbox": {
-    "timeout_secs": 30,
+    "timeout_secs": 900,
     "pool": {
       "size": 3,
       "max_size": 10,

@@ -118,6 +118,7 @@ async def init_sandbox_pool(
         pool_size=pool_config.get("size", 3),
         max_pool_size=pool_config.get("max_size", 10),
         idle_timeout_secs=pool_config.get("idle_timeout_secs", 300.0),
+        ipc_timeout_secs=float(sandbox_config.get("timeout_secs", 60)),
     )
 
     await sandbox_pool.start()
