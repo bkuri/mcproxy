@@ -9,6 +9,7 @@ instead of spawning as child processes. This enables:
 
 import asyncio
 import json
+import time
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -32,16 +33,6 @@ class HTTPServerConnector:
         tool_timeouts: Optional[Dict[str, int]] = None,
         headers: Optional[Dict[str, str]] = None,
     ):
-        """Initialize HTTP server connector.
-
-        Args:
-            name: Server identifier
-            url: HTTP endpoint (e.g., http://localhost:12011/mcp)
-            timeout: Connection timeout in seconds
-            tool_timeout: Default tool call timeout
-            tool_timeouts: Per-tool timeout overrides
-            headers: Additional HTTP headers
-        """
         self.name = name
         self.url = url.rstrip("/")
         self.timeout = timeout
@@ -55,16 +46,15 @@ class HTTPServerConnector:
         self.session_id: Optional[str] = None
         self._tools: List[Dict[str, Any]] = []
         self._initialized = False
-        self._process = None  # For compatibility with ServerManager interface
 
-    @property
-    def process(self):
-        """Compatibility property for ServerManager interface."""
-        return self._process
+        self._reconnect_attempts = 0
+        self._reconnect_backoff_until: float = 0.0
+        self._last_health_check: Optional[float] = None
+        self._last_error: Optional[str] = None
+        self._health_task: Optional[asyncio.Task] = None
 
     @property
     def tools(self) -> List[Dict[str, Any]]:
-        """Return discovered tools."""
         return self._tools
 
     @tools.setter
@@ -72,11 +62,6 @@ class HTTPServerConnector:
         self._tools = value
 
     async def start(self) -> bool:
-        """Connect to the HTTP server and discover tools.
-
-        Returns:
-            True if connected successfully, False otherwise
-        """
         try:
             logger.info(f"Connecting to HTTP server '{self.name}': {self.url}")
 
@@ -94,51 +79,76 @@ class HTTPServerConnector:
             )
 
             if init_response is None or "error" in init_response:
+                error_msg = str(init_response)
+                self._last_error = f"Initialization failed: {error_msg}"
                 logger.error(
                     f"Server '{self.name}' initialization failed: {init_response}"
                 )
                 return False
 
             logger.info(f"Initialized HTTP server '{self.name}'")
-
             self._initialized = True
+            self._last_error = None
+            self._reconnect_attempts = 0
+            self._reconnect_backoff_until = 0.0
 
             await self._discover_tools()
-            logger.info(f"HTTP server '{self.name}' connected with {len(self.tools)} tools")
+            logger.info(
+                f"HTTP server '{self.name}' connected with {len(self.tools)} tools"
+            )
             return True
 
         except Exception as e:
+            self._last_error = str(e)
             logger.error(f"Failed to connect to HTTP server '{self.name}': {e}")
             return False
 
     async def stop(self) -> None:
-        """Disconnect from the HTTP server."""
         logger.info(f"Disconnecting from HTTP server '{self.name}'")
+        await self.stop_health_check()
         if self.session:
             self.session.close()
         self.session = None
+        self.session_id = None
         self._initialized = False
 
     def is_running(self) -> bool:
-        """Check if connected to the server."""
         return self._initialized and self.session is not None
 
     async def restart_if_needed(self) -> bool:
-        """Reconnect if connection is lost."""
         if self.is_running():
             return True
 
-        logger.warning(f"HTTP server '{self.name}' disconnected, reconnecting")
-        return await self.start()
+        now = time.monotonic()
+        if now < self._reconnect_backoff_until:
+            remaining = self._reconnect_backoff_until - now
+            logger.debug(
+                f"HTTP server '{self.name}' reconnect backoff, {remaining:.1f}s remaining"
+            )
+            return False
+
+        self._reconnect_attempts += 1
+        backoff = min(2**self._reconnect_attempts, 60)
+
+        logger.warning(
+            f"HTTP server '{self.name}' reconnecting (attempt {self._reconnect_attempts}, "
+            f"backoff {backoff}s)"
+        )
+
+        success = await self.start()
+        if success:
+            self._reconnect_attempts = 0
+            self._reconnect_backoff_until = 0.0
+        else:
+            self._reconnect_backoff_until = time.monotonic() + backoff
+
+        return success
 
     async def call_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
-        """Call a tool on this server with automatic reconnection."""
         if not self.is_running():
             raise RuntimeError(f"HTTP server '{self.name}' is not connected")
 
-        timeout_seconds = self.tool_timeouts.get(
-            tool_name, self.tool_timeout
-        )
+        timeout_seconds = self.tool_timeouts.get(tool_name, self.tool_timeout)
 
         logger.info(f"[CALL_TOOL_START] server={self.name} tool={tool_name}")
 
@@ -151,6 +161,7 @@ class HTTPServerConnector:
             )
         except RuntimeError as e:
             error_str = str(e)
+            self._last_error = error_str
             if "404" in error_str or "session" in error_str.lower():
                 logger.warning(f"Session expired for '{self.name}', reconnecting...")
                 await self.stop()
@@ -172,14 +183,17 @@ class HTTPServerConnector:
         if "error" in response:
             error_details = response.get("error", {})
             error_msg = str(error_details)
-            logger.error(f"[CALL_TOOL_REMOTE_ERROR] tool={tool_name} error={error_details}")
+            self._last_error = error_msg
+            logger.error(
+                f"[CALL_TOOL_REMOTE_ERROR] tool={tool_name} error={error_details}"
+            )
             raise RuntimeError(f"Tool call failed: {error_msg}")
 
+        self._last_error = None
         logger.info(f"[CALL_TOOL_SUCCESS] tool={tool_name}")
         return response.get("result", {})
 
     async def _discover_tools(self) -> None:
-        """Discover available tools from the server."""
         response = self._send_request(method="tools/list", id="list_tools")
 
         if response and "result" in response and "tools" in response["result"]:
@@ -196,7 +210,6 @@ class HTTPServerConnector:
         id: str = "1",
         timeout: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
-        """Send a JSON-RPC request via MCP streamable HTTP protocol."""
         if self.session is None:
             return None
 
@@ -217,7 +230,6 @@ class HTTPServerConnector:
                 timeout=timeout or self.timeout,
             )
 
-            # Capture session ID from response
             new_session_id = response.headers.get("mcp-session-id")
             if new_session_id:
                 self.session_id = new_session_id
@@ -252,3 +264,92 @@ class HTTPServerConnector:
         except requests.exceptions.RequestException as e:
             logger.error(f"Request to '{self.name}' failed: {e}")
             raise RuntimeError(f"Request failed: {e}")
+
+    def start_health_check(self, interval: int = 30) -> None:
+        if self._health_task is not None and not self._health_task.done():
+            logger.debug(f"Health check already running for '{self.name}'")
+            return
+        self._health_task = asyncio.create_task(self._health_check_loop(interval))
+        logger.info(f"Started health check for '{self.name}' (interval={interval}s)")
+
+    async def stop_health_check(self) -> None:
+        if self._health_task is not None:
+            self._health_task.cancel()
+            try:
+                await self._health_task
+            except asyncio.CancelledError:
+                pass
+            self._health_task = None
+            logger.debug(f"Stopped health check for '{self.name}'")
+
+    async def _health_check_loop(self, interval: int) -> None:
+        try:
+            while True:
+                await asyncio.sleep(interval)
+                await self._perform_health_check()
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.error(f"Health check loop error for '{self.name}': {e}")
+
+    async def _perform_health_check(self) -> None:
+        self._last_health_check = time.time()
+
+        if not self.is_running():
+            return
+
+        try:
+            response = self._send_request(method="tools/list", id="health")
+            if response is None or "error" in response:
+                logger.warning(
+                    f"Health check failed for '{self.name}', marking disconnected"
+                )
+                self._initialized = False
+                self._last_error = "Health check failed"
+                if self.session:
+                    self.session.close()
+                    self.session = None
+        except RuntimeError as e:
+            logger.warning(f"Health check error for '{self.name}': {e}")
+            self._initialized = False
+            self._last_error = str(e)
+            if self.session:
+                self.session.close()
+                self.session = None
+
+    def update_config(
+        self,
+        url: Optional[str] = None,
+        headers: Optional[Dict[str, str]] = None,
+        timeout: Optional[int] = None,
+        tool_timeout: Optional[int] = None,
+        tool_timeouts: Optional[Dict[str, int]] = None,
+    ) -> None:
+        url_changed = url is not None and url.rstrip("/") != self.url
+
+        if url is not None:
+            self.url = url.rstrip("/")
+        if headers is not None:
+            self.headers = headers
+        if timeout is not None:
+            self.timeout = timeout
+        if tool_timeout is not None:
+            self.tool_timeout = tool_timeout
+        if tool_timeouts is not None:
+            self.tool_timeouts = tool_timeouts
+
+        if url_changed and self.is_running():
+            logger.info(f"URL changed for '{self.name}', scheduling reconnect")
+            self._initialized = False
+            self._last_error = "URL changed, pending reconnect"
+
+    def get_status(self) -> Dict[str, Any]:
+        return {
+            "name": self.name,
+            "url": self.url,
+            "connected": self.is_running(),
+            "tools_count": len(self._tools),
+            "last_error": self._last_error,
+            "reconnect_attempts": self._reconnect_attempts,
+            "last_health_check": self._last_health_check,
+        }
