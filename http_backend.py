@@ -179,7 +179,7 @@ class HTTPServerConnector:
         id: str = "1",
         timeout: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
-        """Send a JSON-RPC request via HTTP/SSE."""
+        """Send a JSON-RPC request via MCP streamable HTTP protocol."""
         if self.session is None:
             return None
 
@@ -187,16 +187,26 @@ class HTTPServerConnector:
         if params:
             payload["params"] = params
 
+        headers = {"Content-Type": "application/json"}
+        if self.session_id:
+            headers["mcp-session-id"] = self.session_id
+
         try:
             response = self.session.post(
                 self.url,
                 json=payload,
+                headers=headers,
                 stream=True,
                 timeout=timeout or self.timeout,
             )
+
+            # Capture session ID from response
+            new_session_id = response.headers.get("mcp-session-id")
+            if new_session_id:
+                self.session_id = new_session_id
+
             response.raise_for_status()
 
-            buffer = ""
             for line in response.iter_lines():
                 if not line:
                     continue
