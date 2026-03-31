@@ -176,11 +176,8 @@
     },
     {
       "name": "jesse",
-      "command": "/srv/containers/jesse-baremetal/venv/bin/python",
-      "args": [
-        "-m",
-        "jesse_mcp"
-      ],
+      "type": "http",
+      "url": "http://localhost:12011/mcp",
       "env": {
         "PATH": "/usr/bin:/usr/local/bin:/bin",
         "JESSE_URL": "http://localhost:9100",

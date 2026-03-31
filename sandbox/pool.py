@@ -13,12 +13,14 @@ try:
     _HAS_ORJSON = hasattr(orjson, "loads") and hasattr(orjson, "dumps")
 except ImportError:
     _HAS_ORJSON = False
+
 import os
 import shutil
 import sys
 import tempfile
 import time
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional
+
 from logging_config import get_logger
 from sandbox.runtime import RUNTIME_CLASSES
 
@@ -38,28 +40,28 @@ for line in sys.stdin:
     line = line.strip()
     if not line:
         continue
-    
+
     try:
         request = json.loads(line)
     except json.JSONDecodeError as e:
         print(json.dumps({{"status": "error", "error": f"Invalid JSON: {{e}}"}}), flush=True)
         continue
-    
+
     request_id = request.get("id")
     code = request.get("code")
     manifest_json = request.get("manifest")
     namespace = request.get("namespace")
     retries = request.get("retries", 0)
-    
+
     if not code:
         print(json.dumps({{"id": request_id, "status": "error", "error": "Missing code"}}), flush=True)
         continue
-    
+
     # Execute the code
     try:
         # Set up environment
         import io
-        
+
         _TraceCollector.get().reset()
         _PARALLEL_MAX_CONCURRENCY = request.get("max_concurrency", 5)
         _RETRIES = retries
@@ -69,21 +71,21 @@ for line in sys.stdin:
         _access_control = _NamespaceAccessControl(_registry)
         api = _APIProxy(namespace, _access_control, _IPCClient(_RETRIES), _manifest)
         stash = _StashProxy({{}})
-        
+
         # Capture stdout
         _old_stdout = sys.stdout
         sys.stdout = io.StringIO()
-        
+
         _result = None
         _error = None
         _stdout_output = ""
-        
+
         try:
             import ast
             import re
-            
+
             local_vars = {{"__builtins__": __builtins__, "api": api, "stash": stash, "parallel": parallel, "json": json, "re": re, "sys": sys}}
-            
+
             # Try to extract and evaluate last expression for REPL behavior
             _last_expr_value = None
             try:
@@ -101,10 +103,10 @@ for line in sys.stdin:
                     exec(code, local_vars, local_vars)
             except (SyntaxError, ValueError):
                 exec(code, local_vars, local_vars)
-            
+
             _stdout_output = sys.stdout.getvalue()
             sys.stdout = _old_stdout
-            
+
             if _last_expr_value is not None:
                 _result = _last_expr_value
             elif "run" in local_vars and callable(local_vars["run"]):
@@ -116,7 +118,7 @@ for line in sys.stdin:
             _stdout_output = sys.stdout.getvalue()
             sys.stdout = _old_stdout
             _error = traceback.format_exc()
-        
+
         response = {{
             "id": request_id,
             "status": "error" if _error else "success",
@@ -126,7 +128,7 @@ for line in sys.stdin:
             "tool_time_ms": _TraceCollector.get().get_total_tool_time_ms(),
         }}
         print(json.dumps(response), flush=True)
-        
+
     except Exception as e:
         import traceback
         print(json.dumps({{"id": request_id, "status": "error", "error": traceback.format_exc()}}), flush=True)

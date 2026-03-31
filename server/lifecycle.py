@@ -1,12 +1,11 @@
 """Lifecycle management for MCProxy v2.0 components."""
 
-import asyncio
 from typing import Any, Callable, Dict, List, Optional
 
-from manifest import CapabilityRegistry, EventHookManager
-from sandbox import SandboxExecutor, AccessControlConfig
-from sandbox.pool import SandboxPool
 from logging_config import get_logger
+from manifest import CapabilityRegistry, EventHookManager
+from sandbox import AccessControlConfig, SandboxExecutor
+from sandbox.pool import SandboxPool
 
 logger = get_logger(__name__)
 

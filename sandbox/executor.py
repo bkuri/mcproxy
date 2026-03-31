@@ -12,9 +12,7 @@ Features:
 
 import ast
 import asyncio
-import ast
 import json
-import orjson
 import os
 import shutil
 import sys
@@ -28,12 +26,7 @@ import orjson
 from code_validator import validate_code_for_dangerous_patterns
 from logging_config import get_logger
 from sandbox.access_control import AccessControlConfig, NamespaceAccessControl
-from sandbox.constants import (
-    MAX_CODE_SIZE_BYTES,
-    get_blocked_attributes,
-    get_blocked_functions,
-    get_blocked_imports,
-)
+from sandbox.constants import MAX_CODE_SIZE_BYTES
 from sandbox.runtime import RUNTIME_CLASSES
 from sandbox.security import BLOCKED_BUILTINS, BLOCKED_IMPORTS
 from sandbox.validation import validate_code

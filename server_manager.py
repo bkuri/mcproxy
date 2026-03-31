@@ -10,6 +10,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from sandbox import suggest_tool_fix
 from logging_config import get_logger
+from http_backend import HTTPServerConnector
 
 logger = get_logger(__name__)
 
@@ -480,30 +481,46 @@ class ServerManager:
             if i > 0:
                 await asyncio.sleep(0.5)
 
-            server = ServerProcess(
-                name=server_config["name"],
-                command=server_config["command"],
-                args=server_config.get("args", []),
-                env=server_config.get("env", {}),
-                timeout=server_config.get("timeout", 60),  # Default 60s for npx
-                tool_timeout=server_config.get("tool_timeout"),  # Default tool timeout
-                tool_timeouts=server_config.get("tool_timeouts"),  # Per-tool overrides
-            )
+            # Check if this is an HTTP backend server
+            server_type = server_config.get("type", "stdio")
+            server_url = server_config.get("url")
 
-            # Store config for potential restart
-            server.set_config(
-                command=server_config["command"],
-                args=server_config.get("args", []),
-                env=server_config.get("env", {}),
-                timeout=server_config.get("timeout", 60),
-                tool_timeout=server_config.get("tool_timeout"),
-                tool_timeouts=server_config.get("tool_timeouts"),
-            )
+            if server_type == "http" and server_url:
+                # HTTP backend - connect to pre-existing server
+                server = HTTPServerConnector(
+                    name=server_config["name"],
+                    url=server_url,
+                    timeout=server_config.get("timeout", 60),
+                    tool_timeout=server_config.get("tool_timeout"),
+                    tool_timeouts=server_config.get("tool_timeouts"),
+                    headers=server_config.get("headers"),
+                )
+                self.servers[server.name] = server
+                asyncio.create_task(self._start_server(server))
+            else:
+                # Stdio backend - spawn as subprocess (existing behavior)
+                server = ServerProcess(
+                    name=server_config["name"],
+                    command=server_config["command"],
+                    args=server_config.get("args", []),
+                    env=server_config.get("env", {}),
+                    timeout=server_config.get("timeout", 60),
+                    tool_timeout=server_config.get("tool_timeout"),
+                    tool_timeouts=server_config.get("tool_timeouts"),
+                )
 
-            self.servers[server.name] = server
+                # Store config for potential restart
+                server.set_config(
+                    command=server_config["command"],
+                    args=server_config.get("args", []),
+                    env=server_config.get("env", {}),
+                    timeout=server_config.get("timeout", 60),
+                    tool_timeout=server_config.get("tool_timeout"),
+                    tool_timeouts=server_config.get("tool_timeouts"),
+                )
 
-            # Start in background - don't let one failure break others
-            asyncio.create_task(self._start_server(server))
+                self.servers[server.name] = server
+                asyncio.create_task(self._start_server(server))
 
     async def _start_server(self, server: ServerProcess) -> None:
         """Start a server and handle failures gracefully."""
