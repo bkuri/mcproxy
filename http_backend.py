@@ -53,8 +53,23 @@ class HTTPServerConnector:
         }
         self.session: Optional[requests.Session] = None
         self.session_id: Optional[str] = None
-        self.tools: List[Dict[str, Any]] = []
+        self._tools: List[Dict[str, Any]] = []
         self._initialized = False
+        self._process = None  # For compatibility with ServerManager interface
+
+    @property
+    def process(self):
+        """Compatibility property for ServerManager interface."""
+        return self._process
+
+    @property
+    def tools(self) -> List[Dict[str, Any]]:
+        """Return discovered tools."""
+        return self._tools
+
+    @tools.setter
+    def tools(self, value: List[Dict[str, Any]]) -> None:
+        self._tools = value
 
     async def start(self) -> bool:
         """Connect to the HTTP server and discover tools.

@@ -551,7 +551,8 @@ class ServerManager:
         tools: Dict[str, List[Dict[str, Any]]] = {}
 
         for name, server in self.servers.items():
-            if server.process is not None and server.process.returncode is None:
+            # Check both process (stdio) and is_running (http)
+            if server.is_running():
                 tools[name] = server.tools
 
         return tools
