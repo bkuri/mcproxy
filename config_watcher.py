@@ -381,7 +381,15 @@ def validate_server(server: Dict[str, Any], index: int) -> None:
     if not isinstance(server, dict):
         raise ConfigError(f"Server {index} must be an object")
 
-    required_fields = ["name", "command"]
+    # Required fields depend on server type
+    server_type = server.get("type", "stdio")
+    if server_type == "http":
+        # HTTP backend: requires name and url
+        required_fields = ["name", "url"]
+    else:
+        # Stdio backend: requires name and command
+        required_fields = ["name", "command"]
+
     for field in required_fields:
         if field not in server:
             raise ConfigError(f"Server {index} missing required field '{field}'")
@@ -389,8 +397,13 @@ def validate_server(server: Dict[str, Any], index: int) -> None:
     if not isinstance(server["name"], str) or not server["name"]:
         raise ConfigError(f"Server {index} 'name' must be a non-empty string")
 
-    if not isinstance(server["command"], str) or not server["command"]:
-        raise ConfigError(f"Server {index} 'command' must be a non-empty string")
+    if server_type != "http":
+        if not isinstance(server["command"], str) or not server["command"]:
+            raise ConfigError(f"Server {index} 'command' must be a non-empty string")
+    else:
+        # Validate URL for HTTP backend
+        if not isinstance(server.get("url", ""), str) or not server["url"]:
+            raise ConfigError(f"Server {index} 'url' must be a non-empty string for HTTP backend")
 
     if "args" in server and not isinstance(server["args"], list):
         raise ConfigError(f"Server {index} 'args' must be an array")
