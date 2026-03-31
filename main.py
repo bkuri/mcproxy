@@ -218,13 +218,24 @@ Examples:
     # Spawn servers
     await hot_reload_manager.spawn_servers()
 
-    # Give servers time to start
+    # Give servers time to connect
     await asyncio.sleep(2)
 
-    # Log status
+    # Log status and warn about unreachable servers
     tools = hot_reload_manager.get_all_tools()
     total_tools = sum(len(t) for t in tools.values())
-    logger.info(f"Servers ready: {len(tools)} running with {total_tools} tools")
+    connected_count = len(tools)
+    expected_count = len(
+        [s for s in config.get("servers", []) if s.get("enabled", True) and "url" in s]
+    )
+    logger.info(
+        f"Servers ready: {connected_count}/{expected_count} connected with {total_tools} tools"
+    )
+    if connected_count < expected_count:
+        logger.warning(
+            f"{expected_count - connected_count} servers failed to connect - "
+            f"check that adapter services are running"
+        )
 
     # Initialize sandbox pool for fast execution
     pool = await init_sandbox_pool(

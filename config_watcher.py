@@ -9,6 +9,7 @@ import os
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
+from urllib.parse import urlparse
 
 from logging_config import get_logger
 
@@ -371,6 +372,9 @@ def validate_groups(
 def validate_server(server: Dict[str, Any], index: int) -> None:
     """Validate a single server configuration.
 
+    Supports both stdio (command/args) and HTTP (url) server types.
+    Type is inferred from fields unless explicitly set via 'type'.
+
     Args:
         server: Server configuration dict
         index: Server index for error messages
@@ -381,13 +385,24 @@ def validate_server(server: Dict[str, Any], index: int) -> None:
     if not isinstance(server, dict):
         raise ConfigError(f"Server {index} must be an object")
 
-    # Required fields depend on server type
-    server_type = server.get("type", "stdio")
+    has_url = "url" in server
+    has_command = "command" in server
+
+    if has_url and has_command:
+        raise ConfigError(f"Server {index} cannot have both 'url' and 'command'")
+
+    if has_url:
+        server_type = "http"
+    elif has_command:
+        server_type = "stdio"
+    elif server.get("type") == "http":
+        server_type = "http"
+    else:
+        server_type = server.get("type", "stdio")
+
     if server_type == "http":
-        # HTTP backend: requires name and url
         required_fields = ["name", "url"]
     else:
-        # Stdio backend: requires name and command
         required_fields = ["name", "command"]
 
     for field in required_fields:
@@ -401,9 +416,12 @@ def validate_server(server: Dict[str, Any], index: int) -> None:
         if not isinstance(server["command"], str) or not server["command"]:
             raise ConfigError(f"Server {index} 'command' must be a non-empty string")
     else:
-        # Validate URL for HTTP backend
         if not isinstance(server.get("url", ""), str) or not server["url"]:
-            raise ConfigError(f"Server {index} 'url' must be a non-empty string for HTTP backend")
+            raise ConfigError(
+                f"Server {index} 'url' must be a non-empty string for HTTP backend"
+            )
+        if not server["url"].startswith(("http://", "https://")):
+            raise ConfigError(f"Server {index} 'url' must be a valid HTTP(S) URL")
 
     if "args" in server and not isinstance(server["args"], list):
         raise ConfigError(f"Server {index} 'args' must be an array")
@@ -413,6 +431,9 @@ def validate_server(server: Dict[str, Any], index: int) -> None:
 
     if "timeout" in server and not isinstance(server["timeout"], int):
         raise ConfigError(f"Server {index} 'timeout' must be an integer")
+
+    if "headers" in server and not isinstance(server["headers"], dict):
+        raise ConfigError(f"Server {index} 'headers' must be an object")
 
 
 def validate_namespace_servers(
@@ -604,3 +625,33 @@ def interpolate_env_vars(config: Dict[str, Any]) -> Dict[str, Any]:
         return value
 
     return interpolate(config)
+
+
+def allocate_port(config: Dict[str, Any], base_port: int = 12020) -> int:
+    """Find next available port not used by any configured HTTP server.
+
+    Scans server configs for ports parsed from 'url' fields and returns
+    the first port >= base_port that is not in use.
+
+    Args:
+        config: Configuration dictionary with 'servers' list
+        base_port: Starting port to search from
+
+    Returns:
+        Next available port number
+    """
+    used_ports: set[int] = set()
+    for server in config.get("servers", []):
+        url = server.get("url", "")
+        if url and isinstance(url, str):
+            try:
+                parsed = urlparse(url)
+                if parsed.port is not None:
+                    used_ports.add(parsed.port)
+            except Exception:
+                pass
+
+    port = base_port
+    while port in used_ports:
+        port += 1
+    return port

@@ -215,25 +215,26 @@ class HotReloadServerManager:
                 to_add.add(name)  # Will be started as new
 
             # Start new/updated servers
-            from server_manager import ServerProcess
+            from http_backend import HTTPServerConnector
 
             for name in to_add:
                 server_config = new_servers[name]
                 if not server_config.get("enabled", True):
                     continue
 
-                server = ServerProcess(
+                if "url" not in server_config:
+                    logger.warning(
+                        f"Skipping server '{name}' during reload - missing 'url' field"
+                    )
+                    continue
+
+                server = HTTPServerConnector(
                     name=server_config["name"],
-                    command=server_config["command"],
-                    args=server_config.get("args", []),
-                    env=server_config.get("env", {}),
+                    url=server_config["url"],
                     timeout=server_config.get("timeout", 60),
-                )
-                server.set_config(
-                    command=server_config["command"],
-                    args=server_config.get("args", []),
-                    env=server_config.get("env", {}),
-                    timeout=server_config.get("timeout", 60),
+                    tool_timeout=server_config.get("tool_timeout"),
+                    tool_timeouts=server_config.get("tool_timeouts"),
+                    headers=server_config.get("headers"),
                 )
                 self.manager.servers[server.name] = server
                 asyncio.create_task(self.manager._start_server(server))
@@ -259,9 +260,14 @@ class HotReloadServerManager:
             self._reloading = False
 
     def _server_config_changed(self, old: Dict[str, Any], new: Dict[str, Any]) -> bool:
-        """Check if server configuration has meaningfully changed."""
-        # Compare relevant fields
-        fields = ["command", "args", "env", "timeout", "enabled"]
+        fields = [
+            "url",
+            "headers",
+            "timeout",
+            "enabled",
+            "tool_timeout",
+            "tool_timeouts",
+        ]
         for field in fields:
             if old.get(field) != new.get(field):
                 return True
