@@ -54,3 +54,4 @@ htmlcov/
 mcp-servers.json
 config/
 .opencode/
+mcproxy.json.bak
