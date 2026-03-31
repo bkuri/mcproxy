@@ -3,3 +3,4 @@ uvicorn
 python-json-logger
 fastmcp
 aiohttp
+requests
