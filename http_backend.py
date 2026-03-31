@@ -132,7 +132,7 @@ class HTTPServerConnector:
         return await self.start()
 
     async def call_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
-        """Call a tool on this server."""
+        """Call a tool on this server with automatic reconnection."""
         if not self.is_running():
             raise RuntimeError(f"HTTP server '{self.name}' is not connected")
 
@@ -142,12 +142,29 @@ class HTTPServerConnector:
 
         logger.info(f"[CALL_TOOL_START] server={self.name} tool={tool_name}")
 
-        response = self._send_request(
-            method="tools/call",
-            params={"name": tool_name, "arguments": arguments},
-            id=f"call_{tool_name}",
-            timeout=timeout_seconds,
-        )
+        try:
+            response = self._send_request(
+                method="tools/call",
+                params={"name": tool_name, "arguments": arguments},
+                id=f"call_{tool_name}",
+                timeout=timeout_seconds,
+            )
+        except RuntimeError as e:
+            error_str = str(e)
+            if "404" in error_str or "session" in error_str.lower():
+                logger.warning(f"Session expired for '{self.name}', reconnecting...")
+                await self.stop()
+                if await self.start():
+                    response = self._send_request(
+                        method="tools/call",
+                        params={"name": tool_name, "arguments": arguments},
+                        id=f"call_{tool_name}",
+                        timeout=timeout_seconds,
+                    )
+                else:
+                    raise RuntimeError(f"Failed to reconnect to '{self.name}'")
+            else:
+                raise
 
         if response is None:
             raise RuntimeError(f"No response from HTTP server '{self.name}'")
