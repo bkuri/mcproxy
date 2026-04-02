@@ -55,3 +55,6 @@ mcp-servers.json
 config/
 .opencode/
 mcproxy.json.bak
+
+# Runtime cache
+cache/
