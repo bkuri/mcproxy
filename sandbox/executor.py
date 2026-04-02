@@ -102,6 +102,8 @@ class SandboxExecutor:
         Returns:
             Tuple of (is_valid: bool, error_message: str)
         """
+        code = self._preprocess_js_booleans(code)
+
         if len(code.encode("utf-8")) > MAX_CODE_SIZE_BYTES:
             return False, f"Code exceeds maximum size of {MAX_CODE_SIZE_BYTES} bytes"
 
@@ -136,6 +138,51 @@ class SandboxExecutor:
             )
 
         return True, ""
+
+    def _preprocess_js_booleans(self, code: str) -> str:
+        """Convert JavaScript-style booleans to Python using AST.
+
+        Only replaces true/false/null that appear as standalone Name nodes
+        (not inside strings or as part of other identifiers).
+
+        Args:
+            code: Python code that may contain JS-style booleans
+
+        Returns:
+            Code with true->True, false->False, null->None converted
+        """
+        js_to_python = {"true": "True", "false": "False", "null": "None"}
+
+        try:
+            tree = ast.parse(code)
+        except SyntaxError:
+            return code
+
+        replacements = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Name) and node.id in js_to_python:
+                replacements.append(
+                    (
+                        node.lineno,
+                        node.col_offset,
+                        node.end_col_offset,
+                        js_to_python[node.id],
+                    )
+                )
+
+        if not replacements:
+            return code
+
+        replacements.sort(key=lambda r: (r[0], r[1]), reverse=True)
+
+        lines = code.splitlines(True)
+
+        for lineno, col_start, col_end, replacement in replacements:
+            idx = lineno - 1
+            line = lines[idx]
+            lines[idx] = line[:col_start] + replacement + line[col_end:]
+
+        return "".join(lines)
 
     def _strip_comments(self, code: str) -> str:
         """Remove comments from code for analysis.
@@ -258,6 +305,8 @@ class SandboxExecutor:
             Dict with status, result, traceback, execution_time_ms, and optionally tool_calls
         """
         timeout = timeout_secs or self._default_timeout_secs
+
+        code = self._preprocess_js_booleans(code)
 
         is_valid, error = validate_code(code)
         if not is_valid:
