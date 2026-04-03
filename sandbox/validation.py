@@ -55,7 +55,11 @@ def validate_code(code: str) -> Tuple[bool, str]:
     try:
         tree = ast.parse(code_for_analysis)
     except SyntaxError as e:
-        return False, f"Syntax error: {e}"
+        hint = ""
+        code_text = e.text or ""
+        if ":" in code_text and "=" not in code_text.split(":")[0]:
+            hint = ' Hint: Use Python dict syntax {"key": "value"}, not JavaScript {key: "value"}.'
+        return False, f"Syntax error: {e}{hint}"
 
     blocked = _check_blocked_imports(tree)
     if blocked:

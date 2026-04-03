@@ -103,6 +103,7 @@ class SandboxExecutor:
             Tuple of (is_valid: bool, error_message: str)
         """
         code = self._preprocess_js_booleans(code)
+        code = self._preprocess_js_object_keys(code)
 
         if len(code.encode("utf-8")) > MAX_CODE_SIZE_BYTES:
             return False, f"Code exceeds maximum size of {MAX_CODE_SIZE_BYTES} bytes"
@@ -169,6 +170,54 @@ class SandboxExecutor:
                         js_to_python[node.id],
                     )
                 )
+
+        if not replacements:
+            return code
+
+        replacements.sort(key=lambda r: (r[0], r[1]), reverse=True)
+
+        lines = code.splitlines(True)
+
+        for lineno, col_start, col_end, replacement in replacements:
+            idx = lineno - 1
+            line = lines[idx]
+            lines[idx] = line[:col_start] + replacement + line[col_end:]
+
+        return "".join(lines)
+
+    def _preprocess_js_object_keys(self, code: str) -> str:
+        """Convert JavaScript-style object literals to Python dicts.
+
+        Handles { key: value } -> {"key": value} where key is an
+        unquoted identifier (Name node) used as a dict key.
+        In JS, { key: val } means a dict with string key "key".
+        In Python, { key: val } uses the variable `key` as the key.
+
+        Args:
+            code: Python code that may contain JS-style object literals
+
+        Returns:
+            Code with unquoted dict keys quoted
+        """
+        try:
+            tree = ast.parse(code)
+        except SyntaxError:
+            return code
+
+        replacements = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Dict):
+                continue
+            for key_node in node.keys:
+                if isinstance(key_node, ast.Name):
+                    replacements.append(
+                        (
+                            key_node.lineno,
+                            key_node.col_offset,
+                            key_node.end_col_offset,
+                            f'"{key_node.id}"',
+                        )
+                    )
 
         if not replacements:
             return code
@@ -307,6 +356,7 @@ class SandboxExecutor:
         timeout = timeout_secs or self._default_timeout_secs
 
         code = self._preprocess_js_booleans(code)
+        code = self._preprocess_js_object_keys(code)
 
         is_valid, error = validate_code(code)
         if not is_valid:
