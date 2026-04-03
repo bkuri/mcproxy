@@ -10,6 +10,7 @@ def parse_inspect_code(code: str) -> Tuple[Optional[str], Optional[str]]:
     Supports patterns:
     - api.server("name") -> returns (name, None)
     - api.server("name").tool -> returns (name, tool)
+    - api.server("name").tool("tool_name") -> returns (name, tool_name)
     - api.server('name') -> single quotes also work
 
     Args:
@@ -23,11 +24,16 @@ def parse_inspect_code(code: str) -> Tuple[Optional[str], Optional[str]]:
 
     code = code.strip()
 
-    # Pattern: api.server("server_name") or api.server("server_name").tool_name
-    # Also supports single quotes
-    pattern = r"api\.server\(['\"]([\w\-]+)['\"]\)(?:\.(\w+))?"
-    match = re.match(pattern, code)
+    # Pattern 1: api.server("server_name").method("tool_name")
+    # Agents often write .tool('name') instead of .tool_name
+    pattern_method = r"api\.server\(['\"]([\w\-]+)['\"]\)\.\w+\(['\"]([\w\-]+)['\"]\)"
+    match = re.match(pattern_method, code)
+    if match:
+        return match.group(1), match.group(2)
 
+    # Pattern 2: api.server("server_name").tool_name (attribute access)
+    pattern_attr = r"api\.server\(['\"]([\w\-]+)['\"]\)(?:\.(\w+))?"
+    match = re.match(pattern_attr, code)
     if match:
         server_name = match.group(1)
         tool_name = match.group(2)  # May be None

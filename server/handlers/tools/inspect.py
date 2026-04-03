@@ -29,7 +29,11 @@ async def handle_inspect(
         MCP response with tool schema or list of tool schemas
     """
     code = params.get("code")
-    server_name, tool_name = parse_inspect_code(code or "")
+    server_name = params.get("server")
+    tool_name = params.get("tool")
+
+    if not server_name:
+        server_name, tool_name = parse_inspect_code(code or "")
 
     if not server_name:
         return {
@@ -37,7 +41,7 @@ async def handle_inspect(
             "id": msg_id,
             "error": {
                 "code": -32602,
-                "message": "Missing code. Use code='api.server(\"name\").tool'",
+                "message": "Missing server name. Use server='name' or code='api.server(\"name\").tool'",
             },
         }
 
@@ -58,12 +62,18 @@ async def handle_inspect(
         server_tools = tools_by_server.get(server_name)
 
         if not server_tools:
+            available = sorted(tools_by_server.keys())[:15]
+            available_str = ", ".join(available)
             return {
                 "jsonrpc": "2.0",
                 "id": msg_id,
                 "error": {
                     "code": -32000,
-                    "message": f"Server '{server_name}' not found",
+                    "message": (
+                        f"Server '{server_name}' not found. "
+                        f"Available servers: {available_str}. "
+                        f"Use mcproxy(action='search') to discover servers."
+                    ),
                 },
             }
 
@@ -94,7 +104,11 @@ async def handle_inspect(
                 "id": msg_id,
                 "error": {
                     "code": -32000,
-                    "message": f"Tool '{tool_name}' not found in server '{server_name}'",
+                    "message": (
+                        f"Tool '{tool_name}' not found in server '{server_name}'. "
+                        f"Available tools: {', '.join(t.get('name', '') for t in server_tools[:10])}. "
+                        f"Use mcproxy(action='inspect', server='{server_name}') to see all tools."
+                    ),
                 },
             }
 
