@@ -76,11 +76,13 @@ def handle_help(msg_id: Any, arguments: Dict[str, Any]) -> Dict[str, Any]:
             "actions": {
                 "execute": {
                     "description": "Run Python code with access to MCP tools",
+                    "syntax": "api.server('server_name').actual_tool_name(param1='val1', param2='val2')",
+                    "important": "Tool names are ATTRIBUTES on the server proxy. Use api.server('wikipedia').search(query='x'), NOT api.server('wikipedia').tool('search')(query='x').",
+                    "python_syntax": 'Use Python dict syntax: {"key": "value"}. JavaScript-style {key: "value"} is NOT valid Python.',
                     "usage": "mcproxy(action='execute', code='...', namespace='...', timeout_secs=60, retries=0)",
                     "available_objects": {
-                        "api": "Access MCP servers: api.server('name').tool(args)",
+                        "api": "Access MCP servers: api.server('name').tool_name(args)",
                         "parallel": "Execute multiple tool calls concurrently: parallel([lambda: ...])",
-                        "mcproxy": "Call mcproxy from within code: mcproxy(action='search', ...)",
                     },
                     "parameters": {
                         "timeout_secs": "Optional execution timeout (default: 60 seconds)",
@@ -93,7 +95,8 @@ def handle_help(msg_id: Any, arguments: Dict[str, Any]) -> Dict[str, Any]:
                 },
                 "inspect": {
                     "description": "Get detailed schemas for a server's tools (parameters, types, required fields)",
-                    "usage": "mcproxy(action='inspect', server='name', namespace='...')",
+                    "usage": "mcproxy(action='inspect', server='name', tool='tool_name')",
+                    "note": "Pass server and tool as separate parameters. Example: mcproxy(action='inspect', server='wikipedia', tool='search')",
                 },
                 "help": {
                     "description": "Get help and documentation",
@@ -112,6 +115,10 @@ def handle_help(msg_id: Any, arguments: Dict[str, Any]) -> Dict[str, Any]:
                 },
                 {
                     "description": "Inspect tool schemas",
+                    "code": "mcproxy(action='inspect', server='wikipedia', tool='search', namespace='dev')",
+                },
+                {
+                    "description": "Inspect all tools for a server",
                     "code": "mcproxy(action='inspect', server='wikipedia', namespace='dev')",
                 },
                 {
@@ -125,10 +132,12 @@ def handle_help(msg_id: Any, arguments: Dict[str, Any]) -> Dict[str, Any]:
             ],
             "quick_start": {
                 "step_1_discover": "mcproxy(action='search', query='', namespace='dev')",
-                "step_2_inspect": "mcproxy(action='inspect', server='wikipedia', namespace='dev')",
+                "step_2_inspect": "mcproxy(action='inspect', server='wikipedia', tool='search')",
                 "step_3_execute": "mcproxy(action='execute', code='api.server(\"wikipedia\").search(query=\"Python\")', namespace='dev')",
             },
             "tips": {
+                "tool_names_are_attributes": "Use api.server('name').actual_tool_name(args) - tool_name is an attribute, not a method call like .tool('name').",
+                "python_dicts": 'Use {"key": "value"} not {key: "value"}. Python requires quoted dict keys.',
                 "parallel_execution": "Use parallel() for multiple tool calls - much faster than sequential",
                 "timeout_errors": "If you see timeout errors, they're from upstream MCP servers (not mcproxy). Try increasing timeout_secs or use retries=3 for automatic retry.",
                 "server_discovery": "Use search(query='') to list all available servers and their tool counts",

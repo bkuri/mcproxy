@@ -30,7 +30,9 @@ META_TOOLS: List[Dict[str, Any]] = [
         "name": "mcproxy",
         "description": "Unified tool: execute (run code), search (find tools), inspect (get schemas), help (get docs). "
         "Response: {status, result, stdout, traceback}. "
-        "Use api.server('name').tool(args) with servers from initialize instructions.",
+        "IMPORTANT: In execute code, use api.server('server_name').actual_tool_name(arg1='val1') where actual_tool_name is the real tool name from search/inspect. "
+        "Example: api.server('wikipedia').search(query='Python'). "
+        "Tool names are ATTRIBUTES on the server proxy, not method calls like .tool('name').",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -41,7 +43,15 @@ META_TOOLS: List[Dict[str, Any]] = [
                 },
                 "code": {
                     "type": "string",
-                    "description": "Code expression (for action='execute' or 'inspect'). Execute: api.server('name').tool(args). Inspect: api.server('name').tool or api.server('name')",
+                    "description": "Python code (action='execute') or expression (action='inspect'). Execute example: api.server('wikipedia').search(query='Python'). Inspect example: api.server('wikipedia').search",
+                },
+                "server": {
+                    "type": "string",
+                    "description": "Server name (action='inspect'). Returns all tool schemas for the server. Use with tool param for a specific tool.",
+                },
+                "tool": {
+                    "type": "string",
+                    "description": "Tool name (action='inspect', used with server). Returns schema for a specific tool.",
                 },
                 "query": {
                     "type": "string",
