@@ -88,6 +88,19 @@ async def handle_execute(
         overhead_ms = execution_time_ms - tool_time_ms
         result["overhead_ms"] = overhead_ms
 
+        # Detect common agent syntax mistakes and provide corrective guidance
+        if result.get("status") == "error" and result.get("traceback"):
+            tb = result["traceback"]
+            if "_ToolProxy.__call__()" in tb and "positional argument" in tb:
+                result["traceback"] = (
+                    "Tool call syntax error: positional arguments are not allowed. "
+                    "Tool calls require KEYWORD arguments only.\n"
+                    "CORRECT:   api.server('name').tool_name(param1='val1', param2='val2')\n"
+                    "INCORRECT: api.server('name').tool_name({'param1': 'val1'})\n"
+                    "INCORRECT: api.server('name').tool_name(param_dict)\n"
+                    "If you have a dict, unpack it: api.server('name').tool_name(**my_dict)"
+                )
+
         if tool_time_ms > 5000:
             logger.warning(
                 f"[SLOW_TOOL]{log_ns}{log_sess} tool_time={tool_time_ms}ms "
