@@ -236,6 +236,20 @@ class HTTPServerConnector:
 
             response.raise_for_status()
 
+            content_type = response.headers.get("content-type", "")
+
+            # Streamable HTTP (MCP 2025-06-18): plain JSON response
+            if "application/json" in content_type:
+                try:
+                    result = response.json()
+                    if "result" in result or "error" in result:
+                        return result
+                except (json.JSONDecodeError, ValueError):
+                    pass
+                logger.warning(f"No valid JSON-RPC response from '{self.name}'")
+                return None
+
+            # SSE transport: scan for data: lines
             for line in response.iter_lines():
                 if not line:
                     continue
