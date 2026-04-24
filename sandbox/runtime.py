@@ -314,7 +314,15 @@ class _ToolProxy:
         self._manifest = manifest
     
     def __call__(self, **kwargs):
-        '''Execute the tool with given arguments.'''
+        '''Execute the tool with keyword arguments only.
+
+        CORRECT:   api.server('name').tool_name(param1='val1', param2='val2')
+        INCORRECT: api.server('name').tool_name({'param1': 'val1'})
+        INCORRECT: api.server('name').tool_name(param_dict)
+
+        All arguments must be keyword arguments. Do not pass dicts as
+        positional args. If you have a dict, unpack it: tool_name(**my_dict)
+        '''
         # Try exact match first, then try with hyphens/underscores swapped
         server_info = self._manifest.servers.get(self._server_name, {})
         tools = server_info.get("tools", [])

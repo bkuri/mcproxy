@@ -30,7 +30,12 @@ META_TOOLS: List[Dict[str, Any]] = [
         "name": "mcproxy",
         "description": "Unified tool: execute (run code), search (find tools), inspect (get schemas), help (get docs). "
         "Response: {status, result, stdout, traceback}. "
-        "IMPORTANT: In execute code, use api.server('server_name').actual_tool_name(arg1='val1') where actual_tool_name is the real tool name from search/inspect. "
+        "CRITICAL SYNTAX RULES for execute code: "
+        "1. Tool calls use KEYWORD arguments only: api.server('name').tool_name(param='value') "
+        "2. NEVER pass a dict as positional arg: api.server('name').tool_name({'key': 'val'}) will fail "
+        "3. If you have a dict, unpack it: api.server('name').tool_name(**my_dict) "
+        "4. Tool names are ATTRIBUTES on the server proxy: api.server('wikipedia').search(query='Python') "
+        "5. NOT method calls: api.server('wikipedia').tool('search') is WRONG "
         "Example: api.server('wikipedia').search(query='Python'). "
         "Tool names are ATTRIBUTES on the server proxy, not method calls like .tool('name').",
         "inputSchema": {

@@ -99,10 +99,20 @@ async def handle_execute(
 
     except Exception as e:
         logger.error(f"[EXECUTE_ERROR] {e}")
+        error_msg = str(e)
+        # Detect common agent mistakes and provide corrective guidance
+        if "_ToolProxy.__call__()" in error_msg and "positional argument" in error_msg:
+            error_msg = (
+                f"Tool call syntax error: {e}. "
+                "Tool calls require KEYWORD arguments only. "
+                "CORRECT: api.server('name').tool_name(param1='val1', param2='val2') "
+                "INCORRECT: api.server('name').tool_name({'param1': 'val1'}) "
+                "If you have a dict, unpack it: api.server('name').tool_name(**my_dict)"
+            )
         return {
             "jsonrpc": "2.0",
             "id": msg_id,
-            "error": {"code": -32000, "message": f"Execution failed: {e}"},
+            "error": {"code": -32000, "message": f"Execution failed: {error_msg}"},
         }
 
 
