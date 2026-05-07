@@ -49,7 +49,8 @@ def init_v2_components(
     _tool_executor = tool_executor
     sandbox_pool = pool
 
-    capability_registry = CapabilityRegistry()
+    search_cache_ttl = config.get("search", {}).get("cache_ttl", 300)
+    capability_registry = CapabilityRegistry(query_cache_ttl=search_cache_ttl)
 
     if config and "namespaces" in config:
         capability_registry._namespaces = config["namespaces"]

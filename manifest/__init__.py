@@ -6,11 +6,12 @@ Provides capability registry, manifest queries, event hooks, and namespace inher
 from .errors import ManifestError, NamespaceInheritanceError, validate_group
 from .hooks import EventHookManager
 from .query import ManifestQuery
-from .registry import CACHE_DIR, CACHE_FILE, CACHE_TTL_SECONDS, CapabilityRegistry
+from .registry import CACHE_DIR, CACHE_FILE, CACHE_TTL_SECONDS, CapabilityRegistry, QueryResultCache
 
 __all__ = [
     "CapabilityRegistry",
     "ManifestQuery",
+    "QueryResultCache",
     "EventHookManager",
     "ManifestError",
     "NamespaceInheritanceError",

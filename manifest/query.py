@@ -51,6 +51,11 @@ class ManifestQuery:
         if not manifest:
             return {"error": "Manifest not built", "results": []}
 
+        # Check query cache
+        cached = self._registry.query_cache.get(query, namespace, max_depth, max_tools)
+        if cached is not None:
+            return cached
+
         results: Dict[str, Any] = {
             "query": query,
             "namespace": namespace,
@@ -204,5 +209,8 @@ class ManifestQuery:
                     f"Use a more specific query to narrow results, or use max_depth=1 for overview. "
                     f"Truncated: {', '.join(f'{r["server"]} ({r["_total_matched"]} tools)' for r in truncated_servers)}"
                 )
+
+        # Cache the result
+        self._registry.query_cache.set(query, namespace, max_depth, max_tools, results)
 
         return results

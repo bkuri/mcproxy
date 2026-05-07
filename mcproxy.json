@@ -340,7 +340,8 @@
   "_hot_reload_test": "test_1772485402.0523033",
   "search": {
     "min_words": 2,
-    "max_tools": 5
+    "max_tools": 5,
+    "cache_ttl": 300
   },
   "sandbox": {
     "timeout_secs": 900,

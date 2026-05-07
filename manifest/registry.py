@@ -1,6 +1,7 @@
 """Capability registry for building and managing manifests."""
 
 import json
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
@@ -16,19 +17,135 @@ CACHE_FILE = CACHE_DIR / "manifest.json"
 CACHE_TTL_SECONDS = 3600
 
 
+class QueryResultCache:
+    """Simple in-memory cache for search query results with TTL.
+
+    Cache entries are keyed by a string combining (query, namespace, max_depth, max_tools).
+    Expired entries are lazily evicted on read.
+    """
+
+    def __init__(self, ttl_seconds: int = 300) -> None:
+        """Initialize the query result cache.
+
+        Args:
+            ttl_seconds: Time-to-live in seconds for cache entries (default: 300)
+        """
+        self._cache: Dict[str, Dict[str, Any]] = {}
+        self._ttl = ttl_seconds
+
+    @property
+    def ttl(self) -> int:
+        """Get current TTL in seconds."""
+        return self._ttl
+
+    @ttl.setter
+    def ttl(self, value: int) -> None:
+        """Set TTL. Setting to 0 effectively disables caching."""
+        self._ttl = value
+        if value <= 0:
+            self.clear()
+
+    def _make_key(
+        self,
+        query: str,
+        namespace: Optional[str],
+        max_depth: int,
+        max_tools: int,
+    ) -> str:
+        """Build a cache key from search parameters."""
+        return f"{query}|{namespace or ''}|{max_depth}|{max_tools}"
+
+    def get(
+        self,
+        query: str,
+        namespace: Optional[str],
+        max_depth: int,
+        max_tools: int,
+    ) -> Optional[Dict[str, Any]]:
+        """Get cached search result if fresh.
+
+        Args:
+            query: Search query string
+            namespace: Optional namespace filter
+            max_depth: Search depth level
+            max_tools: Max tools per server
+
+        Returns:
+            Cached result dict or None if miss/expired
+        """
+        if self._ttl <= 0:
+            return None
+
+        key = self._make_key(query, namespace, max_depth, max_tools)
+        entry = self._cache.get(key)
+        if entry is None:
+            return None
+
+        age = time.monotonic() - entry["ts"]
+        if age > self._ttl:
+            del self._cache[key]
+            return None
+
+        return entry["data"]
+
+    def set(
+        self,
+        query: str,
+        namespace: Optional[str],
+        max_depth: int,
+        max_tools: int,
+        data: Dict[str, Any],
+    ) -> None:
+        """Cache a search result.
+
+        Args:
+            query: Search query string
+            namespace: Optional namespace filter
+            max_depth: Search depth level
+            max_tools: Max tools per server
+            data: The result dict to cache
+        """
+        if self._ttl <= 0:
+            return
+
+        key = self._make_key(query, namespace, max_depth, max_tools)
+        self._cache[key] = {"data": data, "ts": time.monotonic()}
+
+    def clear(self) -> None:
+        """Clear all cached entries."""
+        self._cache.clear()
+
+    @property
+    def size(self) -> int:
+        """Number of entries currently cached."""
+        return len(self._cache)
+
+    def stats(self) -> Dict[str, Any]:
+        """Get cache statistics."""
+        return {
+            "size": len(self._cache),
+            "ttl_seconds": self._ttl,
+        }
+
+
 class CapabilityRegistry:
     """Registry for building and managing capability manifests.
 
     Handles server tools aggregation, namespace inheritance, and manifest caching.
     """
 
-    def __init__(self) -> None:
-        """Initialize the capability registry."""
+    def __init__(self, query_cache_ttl: int = 300) -> None:
+        """Initialize the capability registry.
+
+        Args:
+            query_cache_ttl: TTL in seconds for the query result cache (default: 300, 0 disables)
+        """
         self._manifest: Dict[str, Any] = {}
         self._namespaces: Dict[str, Any] = {}
         self._groups: Dict[str, Any] = {}
         self._server_tools: Dict[str, List[Dict]] = {}
         self._cache_enabled: bool = True
+        self._query_cache: QueryResultCache = QueryResultCache(ttl_seconds=query_cache_ttl)
 
     def build(self, servers_tools: Dict[str, List]) -> Dict:
         """Build manifest from server tools.
@@ -342,9 +459,15 @@ class CapabilityRegistry:
             logger.warning(f"Failed to load cache: {e}")
             return None
 
+    @property
+    def query_cache(self) -> QueryResultCache:
+        """Get the query result cache."""
+        return self._query_cache
+
     def invalidate_cache(self) -> None:
-        """Invalidate the manifest cache."""
+        """Invalidate the manifest cache and query result cache."""
         self._manifest = {}
+        self._query_cache.clear()
         try:
             if CACHE_FILE.exists():
                 CACHE_FILE.unlink()
