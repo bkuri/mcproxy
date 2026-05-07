@@ -73,7 +73,7 @@ class HTTPServerConnector:
                 params={
                     "protocolVersion": "2024-11-05",
                     "capabilities": {},
-                    "clientInfo": {"name": "mcproxy", "version": "5.0.0"},
+                    "clientInfo": {"name": "mcproxy", "version": "5.1.0"},
                 },
                 id="init",
             )
