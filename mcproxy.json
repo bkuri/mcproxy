@@ -223,6 +223,12 @@
       },
       "timeout": 60,
       "enabled": true
+    },
+    {
+      "name": "zilliqa_insights",
+      "timeout": 60,
+      "enabled": true,
+      "url": "https://insights.mcp.zilliqa.com/mcp"
     }
   ],
   "namespaces": {
@@ -278,6 +284,13 @@
       ],
       "isolated": false,
       "extends": []
+    },
+    "blockchain": {
+      "servers": [
+        "zilliqa_insights"
+      ],
+      "isolated": false,
+      "extends": []
     }
   },
   "groups": {
@@ -299,7 +312,8 @@
         "thinking",
         "docs",
         "web",
-        "financial"
+        "financial",
+        "blockchain"
       ]
     },
     "automation_full": {
@@ -315,6 +329,7 @@
         "docs",
         "web",
         "automation",
+        "blockchain",
         "!trading"
       ]
     },
@@ -324,6 +339,7 @@
         "financial",
         "docs",
         "web",
+        "blockchain",
         "!trading"
       ]
     },
