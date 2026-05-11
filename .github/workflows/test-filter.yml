@@ -1,0 +1,9 @@
+name: Test Filter
+on:
+  push:
+    branches-ignore: [main, master]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "filter test"
