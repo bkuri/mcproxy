@@ -138,6 +138,39 @@ git push  # Hook handles rest
 
 ---
 
+## Configuration
+
+### Timeouts
+
+Each server has a configurable `timeout` (in seconds) that controls how long mcproxy waits for a response from the MCP subprocess. The default is **120 seconds**.
+
+```json
+{
+  "name": "my_server",
+  "command": "/usr/bin/npx",
+  "args": ["-y", "some-mcp-server"],
+  "timeout": 120
+}
+```
+
+For long-running operations (e.g., backtesting), you can set higher timeouts or use `tool_timeouts` for per-tool overrides:
+
+```json
+{
+  "name": "jesse",
+  "timeout": 350,
+  "tool_timeout": 600,
+  "tool_timeouts": {
+    "backtest": 900,
+    "optimize": 1200
+  }
+}
+```
+
+> **Note:** If you're calling mcproxy through an MCP client (e.g., opencode, Claude Desktop), ensure the client's own timeout is set higher than mcproxy's server timeout, or the client may terminate the connection before mcproxy responds. For example, in opencode's `opencode.json`, set `"timeout": 120000` (120s in milliseconds).
+
+---
+
 ## Troubleshooting
 
 ```bash

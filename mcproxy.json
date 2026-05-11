@@ -10,7 +10,7 @@
       "env": {
         "PATH": "/usr/bin:/usr/local/bin:/bin"
       },
-      "timeout": 60,
+      "timeout": 120,
       "enabled": true
     },
     {
@@ -23,7 +23,7 @@
       "env": {
         "PATH": "/usr/bin:/usr/local/bin:/bin"
       },
-      "timeout": 60,
+      "timeout": 120,
       "enabled": true
     },
     {
@@ -35,7 +35,7 @@
       "env": {
         "PATH": "/usr/bin:/usr/local/bin:/bin"
       },
-      "timeout": 60,
+      "timeout": 120,
       "enabled": true
     },
     {
@@ -48,7 +48,7 @@
       "env": {
         "PATH": "/usr/bin:/usr/local/bin:/bin"
       },
-      "timeout": 60,
+      "timeout": 120,
       "enabled": true
     },
     {
@@ -62,7 +62,7 @@
         "PATH": "/usr/bin:/usr/local/bin:/bin",
         "COINSTATS_API_KEY": "${COINSTATS_API_KEY}"
       },
-      "timeout": 60,
+      "timeout": 120,
       "enabled": true
     },
     {
@@ -78,7 +78,7 @@
       "env": {
         "PATH": "/usr/bin:/usr/local/bin:/bin"
       },
-      "timeout": 60,
+      "timeout": 120,
       "enabled": true
     },
     {
@@ -91,7 +91,7 @@
       "env": {
         "PATH": "/usr/bin:/usr/local/bin:/bin"
       },
-      "timeout": 60,
+      "timeout": 120,
       "enabled": true
     },
     {
@@ -104,7 +104,7 @@
       "env": {
         "PATH": "/usr/bin:/usr/local/bin:/bin"
       },
-      "timeout": 60,
+      "timeout": 120,
       "enabled": true
     },
     {
@@ -117,7 +117,7 @@
       "env": {
         "PATH": "/usr/bin:/usr/local/bin:/bin"
       },
-      "timeout": 60,
+      "timeout": 120,
       "enabled": true
     },
     {
@@ -130,7 +130,7 @@
       "env": {
         "PATH": "/usr/bin:/usr/local/bin:/bin"
       },
-      "timeout": 60,
+      "timeout": 120,
       "enabled": true
     },
     {
@@ -144,7 +144,7 @@
         "PATH": "/usr/bin:/usr/local/bin:/bin",
         "PUREMD_API_KEY": "${PUREMD_API_KEY}"
       },
-      "timeout": 60,
+      "timeout": 120,
       "enabled": true
     },
     {
@@ -157,7 +157,7 @@
       "env": {
         "PATH": "/usr/bin:/usr/local/bin:/bin"
       },
-      "timeout": 60,
+      "timeout": 120,
       "enabled": true
     },
     {
@@ -171,7 +171,7 @@
         "PERPLEXITY_MODEL": "sonar",
         "PERPLEXITY_API_KEY": "${PERPLEXITY_API_KEY}"
       },
-      "timeout": 60,
+      "timeout": 120,
       "enabled": true
     },
     {
@@ -206,7 +206,7 @@
         "PATH": "/usr/bin:/usr/local/bin:/bin",
         "COINMARKETCAP_API_KEY": "${CMC_API_KEY}"
       },
-      "timeout": 60,
+      "timeout": 120,
       "enabled": true
     },
     {
@@ -221,12 +221,12 @@
         "HA_AGENT_URL": "http://192.168.50.99:8099",
         "HA_AGENT_KEY": "ZUAUTBnvtXROPLmCVU0WZPKGN50oBA6AXbneKUfyZvo"
       },
-      "timeout": 60,
+      "timeout": 120,
       "enabled": true
     },
     {
       "name": "zilliqa_insights",
-      "timeout": 60,
+      "timeout": 120,
       "enabled": true,
       "url": "https://insights.mcp.zilliqa.com/mcp"
     }
