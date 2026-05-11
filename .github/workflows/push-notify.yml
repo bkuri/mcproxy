@@ -1,9 +1,0 @@
-name: Push Notification
-on:
-  push:
-    branches-ignore: [main, master]
-jobs:
-  notify:
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "test"
