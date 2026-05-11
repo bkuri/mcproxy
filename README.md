@@ -1,4 +1,4 @@
-# MCProxy v4.2
+# MCProxy
 
 > A lightweight MCP gateway that aggregates multiple stdio MCP servers through namespaced SSE endpoints.
 
