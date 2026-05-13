@@ -1,8 +1,8 @@
 # MCProxy
 
-> A lightweight MCP gateway that aggregates multiple stdio MCP servers through namespaced SSE endpoints.
+> A lightweight MCP gateway that aggregates multiple stdio and HTTP MCP servers through namespaced endpoints.
 
-**Status**: v4.2 - Security Hardening | **Python**: 3.11+ | **Port**: 12010
+**Status**: v5.0.3 | **Python**: 3.11+ | **Port**: 12010
 
 ---
 
@@ -10,10 +10,14 @@
 
 | Feature | Description |
 |---------|-------------|
-| **Code Mode API** | Single `mcproxy` meta-tool with execute/search/inspect actions |
-| **Namespace Isolation** | Group servers by privilege level with access control |
-| **Static API Key Auth** | Agent auth with encrypted credential storage (v4.2) |
-| **Blocklist Security** | Server validation with blocked/risky classification (v4.2) |
+| **Code Mode API** | Single `mcproxy` meta-tool with execute/search/inspect/help actions |
+| **Dual Transport** | Stdio and HTTP MCP servers — connect to pre-existing services or spawn child processes |
+| **Namespace Isolation** | Group servers by privilege level with access control and `!` force-include |
+| **API Key Auth** | Agent auth with encrypted credential storage and rotation |
+| **Blocklist Security** | Server validation with blocked/risky classification |
+| **Manifest System** | Capability registry with caching, TypeScript type generation, and event hooks |
+| **Sandbox Pool** | Pre-warmed sandbox instances with configurable pool sizing |
+| **Session Stash** | Per-session key-value store with TTL for cross-call state |
 | **Hot-Reload** | Add/remove servers without dropping connections |
 | **Dual Mode** | HTTP/SSE endpoint OR native MCP server over stdio |
 
@@ -44,37 +48,112 @@ docker run -d -p 12010:12010 \
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      MCProxy Gateway                        │
-│                                                             │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐  │
-│  │   Auth v4.1  │    │ Blocklist    │    │  Code Mode   │  │
-│  │  (JWT + cred) │    │  v4.2        │    │  (execute)   │  │
-│  └──────────────┘    └──────────────┘    └──────────────┘  │
-│         │                   │                   │          │
-│         └───────────────────┼───────────────────┘          │
-│                             │                              │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │              Server Manager                           │  │
-│  │  wikipedia  perplexity  coinstats  youtube  ...       │  │
-│  └──────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                        MCProxy Gateway                          │
+│                                                                 │
+│  ┌───────────────┐ ┌───────────────┐ ┌───────────────────────┐ │
+│  │  Auth          │ │  Blocklist    │ │  Manifest             │ │
+│  │  (API keys +  │ │  (blocked/    │ │  (registry + cache +  │ │
+│  │   credentials)│ │   risky)      │ │   TypeScript gen)     │ │
+│  └───────┬───────┘ └───────┬───────┘ └───────────┬───────────┘ │
+│          └─────────────────┼─────────────────────┘             │
+│                            │                                    │
+│  ┌─────────────────────────┼────────────────────────────────┐  │
+│  │  Sandbox Pool           │    Session Stash               │  │
+│  │  (pre-warmed executors  │    (per-session KV + TTL)      │  │
+│  │   with code validation) │                                │  │
+│  └─────────────────────────┼────────────────────────────────┘  │
+│                            │                                    │
+│  ┌─────────────────────────┼────────────────────────────────┐  │
+│  │                  Server Manager                           │  │
+│  │                                                           │  │
+│  │  ┌─ Stdio ─────────────┐  ┌─ HTTP ─────────────────────┐ │  │
+│  │  │ wikipedia  youtube  │  │ jesse (per-tool timeouts)   │ │  │
+│  │  │ perplexity coinstats│  │ any Streamable HTTP server  │ │  │
+│  │  │ llms_txt  more...   │  │                             │ │  │
+│  │  └────────────────────┘  └─────────────────────────────┘ │  │
+│  └──────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Security (v4.2)
+## Configuration
 
-MCProxy v4.2 includes defense-in-depth security:
+### Servers
 
-- **Blocklist validation** at startup
+MCProxy supports two server types:
+
+```json
+{
+  "servers": [
+    {
+      "name": "wikipedia",
+      "command": "/usr/bin/npx",
+      "args": ["-y", "wikipedia-mcp"],
+      "timeout": 60
+    },
+    {
+      "name": "jesse",
+      "type": "http",
+      "url": "http://localhost:12011/mcp",
+      "timeout": 350,
+      "tool_timeout": 600,
+      "tool_timeouts": {
+        "backtest": 900,
+        "optimize": 1200
+      }
+    }
+  ]
+}
+```
+
+### Namespaces & Groups
+
+```json
+{
+  "namespaces": {
+    "docs": {"servers": ["wikipedia", "llms_txt"], "isolated": false},
+    "trading": {"servers": ["jesse"], "isolated": true},
+    "home": {"servers": ["home_assistant"], "isolated": false}
+  },
+  "groups": {
+    "research": {"namespaces": ["thinking", "docs", "web", "financial"]},
+    "maxitrader": {"namespaces": ["thinking", "financial", "docs", "web", "!trading"]}
+  }
+}
+```
+
+The `!` prefix on a namespace in a group means **force-include** — isolated namespaces are normally excluded from groups unless explicitly prefixed.
+
+### Sandbox
+
+```json
+{
+  "sandbox": {
+    "timeout_secs": 900,
+    "pool": {
+      "size": 3,
+      "max_size": 10,
+      "idle_timeout_secs": 300
+    }
+  }
+}
+```
+
+---
+
+## Security
+
+Defense-in-depth with blocklist validation and sandbox hardening:
+
+- **Blocklist validation** at startup (blocked/risky/unclassified)
+- **Sandbox code validation** — blocked imports (`os`, `subprocess`, `socket`, …), blocked builtins (`eval`, `exec`, `open`, …), blocked dunder attributes
+- **JS-style auto-conversion** — agents commonly send `{key: "value"}` instead of `{"key": "value"}`; the sandbox auto-fixes this and other common syntax errors
 - **Shell removal** in container (sh/bash/python disabled)
-- **Capability dropping** (CapDrop=ALL)
-- **Filesystem isolation** (ProtectHome, ReadOnlyRootfs)
+- **Capability dropping** (CapDrop=ALL) and **filesystem isolation** (ProtectHome, ReadOnlyRootfs)
 
 ### Blocked Servers
-
-Critical-risk servers are blocked by default:
 
 ```json
 {
@@ -208,5 +287,5 @@ MCProxy v2.0's Code Mode architecture was inspired by **[Forgemax](https://githu
 
 ---
 
-**GitHub**: https://github.com/bkuri/mcproxy  
+**GitHub**: https://github.com/bkuri/mcproxy
 **Issues**: https://github.com/bkuri/mcproxy/issues
